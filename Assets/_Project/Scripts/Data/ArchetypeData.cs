@@ -1,0 +1,23 @@
+using UnityEngine;
+
+namespace _Project.Scripts.Data
+{
+    [CreateAssetMenu(fileName = "NewArchetype", menuName = "Madman/Archetype Data")]
+    public class ArchetypeData : ScriptableObject
+    {
+        [Header("Идентификация")]
+        public string archetypeName = "Новый класс";
+        [TextArea] public string description = "Описание класса";
+
+        [Header("Базовые характеристики")]
+        public float maxHealth = 100f;
+        public float moveSpeed = 5f;
+        public float maxMana = 100f;
+
+        [Header("Инвентарь и Оружие")]
+        public int weaponSlotsCount = 1;
+        public WeaponCategory allowedWeaponCategory;
+
+        // Примечание: Позже мы добавим сюда ссылки на уникальные навыки (например, префаб турели или шипов)
+    }
+}

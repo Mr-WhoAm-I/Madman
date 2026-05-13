@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c5767f17dd345a69264b1861bf29bfa, type: 3}
+  m_Name: Schizoid
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Data.ArchetypeData
+  archetypeName: Schizoid
+  description: "\u041B\u0430\u0437\u0443\u0442\u0447\u0438\u043A"
+  maxHealth: 90
+  moveSpeed: 8
+  maxMana: 200
+  weaponSlotsCount: 1
+  allowedWeaponCategory: 2
