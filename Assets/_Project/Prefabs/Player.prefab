@@ -19,9 +19,9 @@ GameObject:
   - component: {fileID: -7128601996319023254}
   - component: {fileID: 4625988951050694400}
   - component: {fileID: 1910614221998937192}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -166,6 +166,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c3c64649cb9e4cbb89ec176ff8a68fb6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerManager
+  availableArchetypes:
+  - {fileID: 11400000, guid: 72b42aac488227e4eb98b085f2390112, type: 2}
+  - {fileID: 11400000, guid: 138a3970465bf6e4dbc1e0cfe6b05bf7, type: 2}
+  - {fileID: 11400000, guid: a4b28a5e412b8ed4886af5df6bed74d1, type: 2}
+  - {fileID: 11400000, guid: 162e5bf39bd222d4090b309b5d0a7194, type: 2}
   currentArchetype: {fileID: 11400000, guid: 138a3970465bf6e4dbc1e0cfe6b05bf7, type: 2}
 --- !u!114 &-8435589918823312608
 MonoBehaviour:
@@ -180,6 +185,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerWeapon
   equippedWeapons:
+  - {fileID: 11400000, guid: d909471ab4f9cf448a708b2496541d71, type: 2}
   - {fileID: 11400000, guid: d909471ab4f9cf448a708b2496541d71, type: 2}
 --- !u!114 &-179104619915421629
 MonoBehaviour:

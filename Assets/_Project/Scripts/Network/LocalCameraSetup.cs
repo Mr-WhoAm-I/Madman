@@ -6,18 +6,33 @@ namespace _Project.Scripts.Network
 {
     public class LocalCameraSetup : NetworkBehaviour
     {
+        private CinemachineCamera _virtualCamera; 
+
         public override void Spawned()
         {
             if (HasInputAuthority)
             {
-                // Используем самый современный и быстрый метод Unity без сортировки
-                var vcam = FindAnyObjectByType<CinemachineCamera>();
-
-                if (vcam == null) return;
-                vcam.Follow = transform;
-                    
-                Debug.Log("Камера успешно привязана к локальному игроку.");
+                AttachCamera();
             }
+        }
+
+        private void Update()
+        {
+            // МАГИЯ ЗДЕСЬ: Если это наш игрок, но камера вдруг пропала (удалилась при смене сцены)
+            // скрипт автоматически найдет новую камеру на новой сцене!
+            if (HasInputAuthority && _virtualCamera == null)
+            {
+                AttachCamera();
+            }
+        }
+
+        private void AttachCamera()
+        {
+            _virtualCamera = FindAnyObjectByType<CinemachineCamera>();
+
+            if (_virtualCamera == null) return;
+            _virtualCamera.Follow = transform;
+            Debug.Log("[Камера] Успешно привязана к локальному игроку.");
         }
     }
 }

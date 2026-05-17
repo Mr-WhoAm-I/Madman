@@ -18,6 +18,8 @@ namespace _Project.Scripts.Data
         public int weaponSlotsCount = 1;
         public WeaponCategory allowedWeaponCategory;
 
+        [Header("Стартовое Оружие")]
+        public WeaponData defaultWeapon;
         // Примечание: Позже мы добавим сюда ссылки на уникальные навыки (например, префаб турели или шипов)
     }
 }

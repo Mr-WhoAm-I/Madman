@@ -1,31 +1,48 @@
-using UnityEngine;
-using UnityEngine.UI; // Обязательно для работы с UI
 using _Project.Scripts.Network;
+using Fusion;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace _Project.Scripts.UI
 {
     public class HealthUI : MonoBehaviour
     {
-        [Header("Ссылки на интерфейс")]
-        public Image healthFillImage; // Сюда мы перетащим нашу картинку кардиограммы
+        [Header("UI Элементы")]
+        public Image healthFillImage;
 
-        private const float MaxHealth = 100f; // Максимальное здоровье Безумца по умолчанию
+        private Health _localPlayerHealth;
 
         private void Update()
         {
-            // Проверяем, существует ли локальный игрок (мы сохраняли его в статичную переменную)
-            if (PlayerNetworkMovement.LocalPlayerHealth)
+            // 1. Если локальный игрок еще не найден (или он умер и был удален сервером)
+            if (_localPlayerHealth == null)
             {
-                // Получаем текущее здоровье с сервера
-                float currentHealth = PlayerNetworkMovement.LocalPlayerHealth.CurrentHealth;
+                FindLocalPlayerHealth();
                 
-                // Вычисляем процент заполнения (от 0.0 до 1.0)
-                healthFillImage.fillAmount = currentHealth / MaxHealth;
+                // Если после поиска игрок всё еще не найден, прерываем выполнение (это спасает от ошибки бессмертия)
+                if (_localPlayerHealth == null) return; 
             }
-            else
+
+            // 2. Игрок жив и найден — обновляем UI
+            healthFillImage.fillAmount = _localPlayerHealth.CurrentHealth / _localPlayerHealth.MaxHealth;
+        }
+
+        private void FindLocalPlayerHealth()
+        {
+            // Ищем всех игроков на сцене (исключая выключенные объекты)
+            var allHealthComponents = FindObjectsByType<Health>(FindObjectsInactive.Exclude);
+            
+            foreach (var health in allHealthComponents)
             {
-                // Если игрока еще нет (не заспавнился) или он умер - полоска пустая
-                healthFillImage.fillAmount = 0f;
+                var networkObject = health.GetComponent<NetworkObject>();
+                
+                // Проверяем, принадлежит ли этот сетевой объект НАШЕМУ клиенту
+                if (networkObject != null && networkObject.HasInputAuthority)
+                {
+                    _localPlayerHealth = health;
+                    Debug.Log("[UI] Локальная полоска здоровья успешно привязана к Безумцу.");
+                    break; // Игрок найден, прекращаем поиск
+                }
             }
         }
     }

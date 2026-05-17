@@ -10,6 +10,11 @@ namespace _Project.Scripts.ECS.Systems
     {
         public void OnUpdate(ref SystemState state)
         {
+            // Если Менеджера еще нет, или мы КЛИЕНТ — отключаем самостоятельное движение!
+            if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.HasStateAuthority)
+            {
+                return; // Лоботомия: Клиент больше не двигает врагов сам
+            }
             var deltaTime = SystemAPI.Time.DeltaTime;
             
             var targetPos = new float3(

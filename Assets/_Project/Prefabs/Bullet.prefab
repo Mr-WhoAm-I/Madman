@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 8344877937318288798}
   - component: {fileID: 3320792089805816741}
   - component: {fileID: 4270906029452437892}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Bullet
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -146,6 +146,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.BulletNetworkMovement
   speed: 10
+  damage: 25
+  isHit: 0
 --- !u!58 &3320792089805816741
 CircleCollider2D:
   m_ObjectHideFlags: 0

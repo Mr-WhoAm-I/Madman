@@ -34,7 +34,7 @@ namespace _Project.Scripts.Network
         }
 
         // Этот метод гарантирует, что Параноик не возьмет два пистолета
-        private void ValidateWeapons()
+        public void ValidateWeapons()
         {
             if (_playerManager == null || _playerManager.currentArchetype == null) return;
 
