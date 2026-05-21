@@ -13,7 +13,7 @@ namespace _Project.Scripts.ECS.Systems
     {
         public void OnUpdate(ref SystemState state)
         {
-            if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.Object.IsValid)
+            if (EnemySwarmManager.Instance == null || EnemySwarmManager.Instance.Object == null || !EnemySwarmManager.Instance.Object.IsValid)
                 return;
 
             var swarmManager = EnemySwarmManager.Instance;

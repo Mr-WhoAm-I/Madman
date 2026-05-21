@@ -15,37 +15,57 @@ namespace _Project.Scripts.ECS.Systems
             {
                 return; // Лоботомия: Клиент больше не двигает врагов сам
             }
+
+            // Если список игроков пуст (никто еще не заспавнился), врагам некуда идти
+            if (PlayerManager.AllActivePlayers.Count == 0) return;
+
             var deltaTime = SystemAPI.Time.DeltaTime;
             
-            var targetPos = new float3(
-                PlayerNetworkMovement.LocalPlayerPosition.x, 
-                PlayerNetworkMovement.LocalPlayerPosition.y, 
-                0f);
-
-            // Создаем буфер команд (EntityCommandBuffer). 
-            // Мы не можем удалять врагов прямо во время цикла foreach, движок выдаст ошибку.
-            // Поэтому мы записываем "приказы об уничтожении" в этот буфер, чтобы выполнить их позже.
+            // Буфер для удаления врагов (камикадзе)
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // Обрати внимание: мы добавили 'entity' в параметры, чтобы знать, кого удалять
             foreach (var (transform, movement, entity) in SystemAPI.Query<RefRW<LocalTransform>, RefRO<EnemyMovementComponent>>().WithEntityAccess().WithAll<EnemyTagComponent>())
             {
-                var direction = targetPos - transform.ValueRO.Position;
-                var distance = math.length(direction); // Наша оптимизированная математика
+                var enemyPos = transform.ValueRO.Position;
+                var closestPlayerPos = float3.zero;
+                var minDistance = float.MaxValue;
+                PlayerManager closestPlayer = null;
 
-                // 1. ПРОВЕРКА СТОЛКНОВЕНИЯ (Дистанция меньше 0.5 юнитов)
+                // 1. ИЩЕМ БЛИЖАЙШЕГО ИГРОКА ИЗ СПИСКА
+                foreach (var player in PlayerManager.AllActivePlayers)
+                {
+                    if (player == null) continue; // Защита от отключившихся игроков
+                    
+                    var playerPos = new float3(player.transform.position.x, player.transform.position.y, 0f);
+                    var dist = math.distance(enemyPos, playerPos);
+
+                    if (!(dist < minDistance)) continue;
+                    minDistance = dist;
+                    closestPlayerPos = playerPos;
+                    closestPlayer = player; // Запоминаем, кого именно мы преследуем
+                }
+
+                // Если по какой-то причине цель не найдена, стоим на месте
+                if (closestPlayer == null) continue;
+
+                var direction = closestPlayerPos - enemyPos;
+                var distance = math.length(direction); 
+
+                // 2. ПРОВЕРКА СТОЛКНОВЕНИЯ С БЛИЖАЙШИМ ИГРОКОМ
                 if (distance < 0.5f)
                 {
-                    // Проверяем, жив ли еще игрок и имеем ли мы право менять его здоровье (только Сервер!)
-                    if (PlayerNetworkMovement.LocalPlayerHealth != null && PlayerNetworkMovement.LocalPlayerHealth.HasStateAuthority)
+                    // Теперь мы берем Health именно у того игрока, к которому подошли, а не статичный!
+                    var targetHealth = closestPlayer.GetComponent<Health>();
+                    
+                    if (targetHealth != null && targetHealth.HasStateAuthority)
                     {
-                        PlayerNetworkMovement.LocalPlayerHealth.TakeDamage(10f); // Наносим 10 урона
+                        targetHealth.TakeDamage(10f); // Наносим 10 урона
                     }
                     
-                    // Приказываем движку уничтожить этого врага (камикадзе)
+                    // Приказываем движку уничтожить этого врага
                     ecb.DestroyEntity(entity);
                 }
-                // 2. ДВИЖЕНИЕ (Если еще не добежали)
+                // 3. ДВИЖЕНИЕ
                 else
                 {
                     direction = math.normalize(direction);
@@ -53,7 +73,6 @@ namespace _Project.Scripts.ECS.Systems
                 }
             }
 
-            // Выполняем все записанные приказы об уничтожении
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }
