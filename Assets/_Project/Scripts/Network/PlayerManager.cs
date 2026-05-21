@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using _Project.Scripts.Core;
 using Fusion;
 using UnityEngine;
 using _Project.Scripts.Data;
@@ -82,6 +83,19 @@ namespace _Project.Scripts.Network
             currentArchetype = availableArchetypes[classIndex];
             ApplyArchetypeStats(); // Сервер меняет ХП и скорость
             Debug.Log($"[Сервер] Игрок сменил класс на {currentArchetype.archetypeName}");
+        }
+        
+        // Часть логики внутри PlayerManager
+        public void ApplyProgression(int archetypeID, ArchetypeData baseData)
+        {
+            // Получаем прогрессию конкретного архетипа из профиля
+            var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(archetypeID);
+
+            // Пример формулы: Базовое ХП + (Уровень * Бонус за уровень)
+            var calculatedHealth = baseData.maxHealth + (progression.Level * 10f);
+    
+            // Применяем calculatedHealth к компоненту Health на игроке
+            Debug.Log($"[PlayerManager] Архетип {archetypeID} заспавнен. Уровень: {progression.Level}, ХП: {calculatedHealth}");
         }
     }
 }

@@ -171,7 +171,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 138a3970465bf6e4dbc1e0cfe6b05bf7, type: 2}
   - {fileID: 11400000, guid: a4b28a5e412b8ed4886af5df6bed74d1, type: 2}
   - {fileID: 11400000, guid: 162e5bf39bd222d4090b309b5d0a7194, type: 2}
-  currentArchetype: {fileID: 11400000, guid: 138a3970465bf6e4dbc1e0cfe6b05bf7, type: 2}
+  currentArchetype: {fileID: 11400000, guid: 72b42aac488227e4eb98b085f2390112, type: 2}
 --- !u!114 &-8435589918823312608
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -185,8 +185,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerWeapon
   equippedWeapons:
-  - {fileID: 11400000, guid: d909471ab4f9cf448a708b2496541d71, type: 2}
-  - {fileID: 11400000, guid: d909471ab4f9cf448a708b2496541d71, type: 2}
+  - {fileID: 11400000, guid: 97ffe27f349da4341bfd62cbe2da74ca, type: 2}
+  - {fileID: 11400000, guid: 275d4e9257a903e499f9558a29d6c759, type: 2}
 --- !u!114 &-179104619915421629
 MonoBehaviour:
   m_ObjectHideFlags: 0

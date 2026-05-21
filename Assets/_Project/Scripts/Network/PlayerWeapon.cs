@@ -64,21 +64,22 @@ namespace _Project.Scripts.Network
             if (GetComponent<Health>().IsDead) return;
             if (!HasStateAuthority) return;
 
-            // Логика стрельбы из первого слота
+            // Логика стрельбы из первого слота (Левая рука)
             if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner))
             {
-                FireWeapon(equippedWeapons[0]);
+                FireWeapon(equippedWeapons[0], 0); // Передаем индекс 0
                 Timer0 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[0].fireRate);
             }
 
-            // Логика стрельбы из второго слота
+            // Логика стрельбы из второго слота (Правая рука)
             if (equippedWeapons.Length <= 1 || equippedWeapons[1] == null ||
                 !Timer1.ExpiredOrNotRunning(Runner)) return;
-            FireWeapon(equippedWeapons[1]);
+            FireWeapon(equippedWeapons[1], 1); // Передаем индекс 1
             Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate);
         }
 
-        private void FireWeapon(WeaponData weapon)
+        // Обнови сигнатуру метода, добавив int slotIndex
+        private void FireWeapon(WeaponData weapon, int slotIndex) 
         {
             var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
             
@@ -102,18 +103,28 @@ namespace _Project.Scripts.Network
             }
             enemyTransforms.Dispose();
 
-            // Вычисляем базовый угол
-            var direction = (Vector3)nearestEnemyPos - transform.position;
+            // Вычисляем базовое направление и угол
+            var direction = ((Vector3)nearestEnemyPos - transform.position).normalized;
             var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
             var baseRotation = Quaternion.Euler(0, 0, angle);
 
-            // Стрельба (с учетом дроби и разброса)
+            // --- МАГИЯ ДЛЯ ИСТЕРИКА (Разделяем руки) ---
+            // Находим вектор "вправо" относительно направления стрельбы (математика 2D)
+            var rightDirection = Vector3.Cross(direction, Vector3.forward);
+            
+            // Если слот 0 - смещаем влево на 0.3f. Если слот 1 - смещаем вправо на 0.3f
+            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
+            var finalSpawnPos = transform.position + spawnOffset;
+            // -------------------------------------------
+
+            // Стрельба
             for (var p = 0; p < weapon.pelletCount; p++)
             {
                 var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
                 var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
-                Runner.Spawn(weapon.bulletPrefab, transform.position, finalRotation, Object.InputAuthority, (runner, obj) =>
+                // Используем нашу новую позицию finalSpawnPos вместо transform.position
+                Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) =>
                 {
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
                     if (bulletMovement != null)

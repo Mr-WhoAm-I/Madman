@@ -8,6 +8,7 @@ namespace _Project.Scripts.Data
         [Header("Идентификация")]
         public string archetypeName = "Новый класс";
         [TextArea] public string description = "Описание класса";
+        public int archetypeID;
 
         [Header("Базовые характеристики")]
         public float maxHealth = 100f;
