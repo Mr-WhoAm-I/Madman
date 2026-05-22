@@ -14,6 +14,7 @@ namespace _Project.Scripts.Core
             if (Instance == null)
             {
                 Instance = this;
+                transform.parent = null;
                 DontDestroyOnLoad(gameObject); // Чтобы профиль не удалялся при смене сцен
                 LoadGame();
             }

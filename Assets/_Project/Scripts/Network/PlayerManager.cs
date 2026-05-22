@@ -15,49 +15,61 @@ namespace _Project.Scripts.Network
         public ArchetypeData currentArchetype;
 
         public static readonly List<PlayerManager> AllActivePlayers = new();
+
         public override void Spawned()
         {
             AllActivePlayers.Add(this);
-            if (currentArchetype == null) return;
 
-            if (HasStateAuthority)
+            // 1. Клиент (InputAuthority) читает СВОЙ локальный файл
+            if (HasInputAuthority && ProfileController.Instance != null && ProfileController.Instance.CurrentProfile != null)
             {
-                ApplyArchetypeStats();
+                var savedClassIndex = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
+                var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(savedClassIndex);
+                
+                var clientLevel = progression?.Level ?? 1; 
+
+                // Отправляем серверу и индекс класса, и текущий уровень
+                Rpc_ChangeArchetype(savedClassIndex, clientLevel);
+            }
+            // 2. Сервер инициализирует базовые статы, если это не управляемый игроком объект
+            else if (HasStateAuthority && currentArchetype != null)
+            {
+                ApplyArchetypeStats(1); // Для ботов или дефолта ставим 1 уровень
             }
         }
         
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
-            // Когда игрок выходит или умирает, убираем его из списка
             AllActivePlayers.Remove(this);
-        
         }
 
-        private void ApplyArchetypeStats()
+        // Сервер берет переданный клиентом уровень и применяет формулы
+        private void ApplyArchetypeStats(int level)
         {
             var health = GetComponent<Health>();
             if (health != null)
             {
-                health.MaxHealth = currentArchetype.maxHealth;
-                health.CurrentHealth = currentArchetype.maxHealth;
+                // ФОРМУЛА ПРОГРЕССИИ: Базовое ХП + (Уровень * Бонус)
+                float calculatedHealth = currentArchetype.maxHealth + (level * 10f);
+                health.MaxHealth = calculatedHealth;
+                health.CurrentHealth = calculatedHealth;
             }
 
             var movement = GetComponent<PlayerNetworkMovement>();
             if (movement != null)
             {
-                movement.speed = currentArchetype.moveSpeed;
+                // Пример прогрессии скорости: +0.1f за каждый уровень
+                movement.speed = currentArchetype.moveSpeed + (level * 0.1f);
             }
             
             var weaponSystem = GetComponent<PlayerWeapon>();
             if (weaponSystem != null && currentArchetype.defaultWeapon != null)
             {
-                // 1. БЕЗОПАСНАЯ ОЧИСТКА: проходимся только по существующим ячейкам
                 for (var i = 0; i < weaponSystem.equippedWeapons.Length; i++)
                 {
                     weaponSystem.equippedWeapons[i] = null;
                 }
 
-                // 2. Заполняем разрешенные слоты дефолтным оружием
                 for (var i = 0; i < currentArchetype.weaponSlotsCount; i++)
                 {
                     if (i < weaponSystem.equippedWeapons.Length)
@@ -66,36 +78,22 @@ namespace _Project.Scripts.Network
                     }
                 }
 
-                // Запускаем валидацию для надежности
                 weaponSystem.ValidateWeapons();
             }
             
-            Debug.Log($"[Сервер] Игрок загружен как {currentArchetype.archetypeName}");
+            Debug.Log($"[Сервер] Игрок {Object.Id} загружен как {currentArchetype.archetypeName} (Уровень: {level})");
         }
 
-        // НОВЫЙ МЕТОД: Клиент просит сервер сменить класс (RPC)
-        // RpcSources.InputAuthority - кто вызывает (наш клиент)
-        // RpcTargets.StateAuthority - кто исполняет (сервер)
+        // Обновленный RPC: принимает уровень
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void Rpc_ChangeArchetype(int classIndex)
+        public void Rpc_ChangeArchetype(int classIndex, int clientLevel)
         {
             if (classIndex < 0 || classIndex >= availableArchetypes.Length) return;
+            
             currentArchetype = availableArchetypes[classIndex];
-            ApplyArchetypeStats(); // Сервер меняет ХП и скорость
-            Debug.Log($"[Сервер] Игрок сменил класс на {currentArchetype.archetypeName}");
-        }
-        
-        // Часть логики внутри PlayerManager
-        public void ApplyProgression(int archetypeID, ArchetypeData baseData)
-        {
-            // Получаем прогрессию конкретного архетипа из профиля
-            var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(archetypeID);
-
-            // Пример формулы: Базовое ХП + (Уровень * Бонус за уровень)
-            var calculatedHealth = baseData.maxHealth + (progression.Level * 10f);
-    
-            // Применяем calculatedHealth к компоненту Health на игроке
-            Debug.Log($"[PlayerManager] Архетип {archetypeID} заспавнен. Уровень: {progression.Level}, ХП: {calculatedHealth}");
+            
+            // Вызываем применение статов с учетом уровня!
+            ApplyArchetypeStats(clientLevel); 
         }
     }
 }
