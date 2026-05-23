@@ -3,6 +3,7 @@ using TMPro; // Обязательно для TextMeshPro
 using UnityEngine.UI; // Обязательно для UI-слайдеров
 using _Project.Scripts.Network;
 using _Project.Scripts.Core;
+using _Project.Scripts.UI;
 
 namespace _Project.Scripts.Hub
 {
@@ -44,6 +45,10 @@ namespace _Project.Scripts.Hub
             windowGroup.alpha = 0f;
             windowGroup.interactable = false;
             windowGroup.blocksRaycasts = false;
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ResumeInteractionPrompt();
+            }
         }
 
         public void OnHystericClicked() => SendChangeRequest(0);
@@ -53,7 +58,7 @@ namespace _Project.Scripts.Hub
 
         private void SendChangeRequest(int classIndex)
         {
-            int currentLevel = 1; // Уровень по умолчанию, если сейвов вдруг нет
+            var currentLevel = 1; // Уровень по умолчанию, если сейвов вдруг нет
 
             // 1. Сохраняем локально выбранный архетип
             if (ProfileController.Instance != null && ProfileController.Instance.CurrentProfile != null)
@@ -94,7 +99,7 @@ namespace _Project.Scripts.Hub
             }
 
             // У нас 4 архетипа (от 0 до 3)
-            for (int i = 0; i < 4; i++)
+            for (var i = 0; i < 4; i++)
             {
                 // Достаем данные по каждому архетипу
                 var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(i);
@@ -109,15 +114,12 @@ namespace _Project.Scripts.Hub
                 // Обновляем текст опыта (свойства Level и Experience зависят от того, как они названы у тебя в PlayerProgressionData)
                 if (expTexts != null && i < expTexts.Length && expTexts[i] != null)
                 {
-                    expTexts[i].text = $"{progression.} XP"; 
+                    expTexts[i].text = $"{progression.CurrentXP:F0} / {progression.XPToNextLevel:F0} XP";
                 }
 
                 // Обновляем слайдер опыта (если вы его используете)
                 if (expSliders == null || i >= expSliders.Length || expSliders[i] == null) continue;
-                // Пример простой формулы: (Уровень * 1000) - это макс. опыт для текущего уровня. 
-                // Замени на свою логику расчета опыта!
-                var maxExpForNextLevel = progression.Level * 1000f; 
-                expSliders[i].value = (float)progression.Experience / maxExpForNextLevel;
+                expSliders[i].value = progression.CurrentXP / progression.XPToNextLevel;
             }
         }
     }

@@ -24,6 +24,7 @@ namespace _Project.Scripts.Data
         public string waveName = "Волна 1";
         public List<SpawnBatch> spawnBatches = new(); // Кто спавнится в эту волну
         public float delayBeforeWave = 3f;            // Сколько секунд ждем перед началом волны (после магазина)
+        public float waveXpReward;
         public bool hasShopAfterWave = true;          // Открывать ли магазин после зачистки?
     }
 

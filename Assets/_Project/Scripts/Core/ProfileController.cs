@@ -46,5 +46,34 @@ namespace _Project.Scripts.Core
         {
             return CurrentProfile.GetProgressForArchetype(CurrentProfile.LastSelectedArchetypeID);
         }
+        
+        public void AddExperience(float amount)
+        {
+            var progression = GetActiveArchetypeData();
+            if (progression == null) return;
+
+            progression.CurrentXP += amount;
+
+            // Проверяем, не апнули ли мы уровень (цикл на случай, если дали ОЧЕНЬ много опыта)
+            var leveledUp = false;
+            while (progression.CurrentXP >= progression.XPToNextLevel)
+            {
+                progression.CurrentXP -= progression.XPToNextLevel;
+                progression.Level++;
+        
+                // Увеличиваем требование к следующему уровню (например, на 20% больше)
+                progression.XPToNextLevel *= 1.2f; 
+                leveledUp = true;
+            }
+
+            if (leveledUp)
+            {
+                Debug.Log($"[ProfileController] УРОВЕНЬ ПОВЫШЕН! Текущий уровень: {progression.Level}");
+                // Здесь потом можно будет вызывать ивент для красивых партиклов LevelUp на игроке
+            }
+
+            // Сохраняем прогресс на диск
+            SaveGame();
+        }
     }
 }

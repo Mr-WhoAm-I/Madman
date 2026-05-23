@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using _Project.Scripts.UI;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace _Project.Scripts.Network
 {
@@ -31,6 +32,10 @@ namespace _Project.Scripts.Network
             // Защита от двойного запуска, если мы вернемся в Хаб
             if (_runner != null) return;
 
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.SetupHubLayout();
+            }
             Debug.Log("Инициализация сети. Попытка подключения...");
 
             _runner = gameObject.AddComponent<NetworkRunner>();
@@ -52,18 +57,16 @@ namespace _Project.Scripts.Network
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            if (runner.IsServer)
-            {
-                Debug.Log($"Игрок {player} подключился. Спавним куб!");
+            if (!runner.IsServer) return;
+            Debug.Log($"Игрок {player} подключился. Спавним куб!");
                 
-                var networkPlayerObject = runner.Spawn(playerPrefab, Vector3.zero, Quaternion.identity, player);
+            var networkPlayerObject = runner.Spawn(playerPrefab, Vector3.zero, Quaternion.identity, player);
                 
-                // 2. ВАЖНО: Делаем самого ИГРОКА бессмертным при смене сцен!
-                // Теперь он не уничтожится, а значит сохранит свое ХП, Скорость и выбранное Оружие.
-                DontDestroyOnLoad(networkPlayerObject.gameObject);
+            // 2. ВАЖНО: Делаем самого ИГРОКА бессмертным при смене сцен!
+            // Теперь он не уничтожится, а значит сохранит свое ХП, Скорость и выбранное Оружие.
+            DontDestroyOnLoad(networkPlayerObject.gameObject);
 
-                _spawnedCharacters.Add(player, networkPlayerObject);
-            }
+            _spawnedCharacters.Add(player, networkPlayerObject);
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -80,26 +83,27 @@ namespace _Project.Scripts.Network
         public void OnSceneLoadDone(NetworkRunner runner)
         {
             // 3. Сцена загрузилась (Хаб или Бой). Расставляем всех "выживших" игроков!
-            if (runner.IsServer)
+            if (!runner.IsServer) return;
+            foreach (var kvp in _spawnedCharacters.Where(kvp => kvp.Value != null))
             {
-                foreach (var kvp in _spawnedCharacters)
-                {
-                    if (kvp.Value != null)
-                    {
-                        // Скидываем их в центр новой сцены (немного вразброс, чтобы не застряли друг в друге)
-                        kvp.Value.transform.position = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0, 0);
-                    }
-                }
+                // Скидываем их в центр новой сцены (немного вразброс, чтобы не застряли друг в друге)
+                kvp.Value.transform.position = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0, 0);
             }
         }
 
         public void OnInput(NetworkRunner runner, NetworkInput input)
         {
-            var data = new NetworkInputData
+            var inputData = new NetworkInputData();
+            if (HUDManager.Instance != null && HUDManager.Instance.IsInteractionSuspended)
             {
-                MovementInput = _controls.Gameplay.Move.ReadValue<Vector2>()
-            };
-            input.Set(data);
+                input.Set(inputData);
+                return;               
+            }
+
+            var moveInput = _controls.Gameplay.Move.ReadValue<Vector2>();
+            inputData.MovementInput = moveInput;
+
+            input.Set(inputData);
         }
         
         private void OnDestroy()

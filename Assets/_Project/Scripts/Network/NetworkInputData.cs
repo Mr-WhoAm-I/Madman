@@ -6,7 +6,8 @@ namespace _Project.Scripts.Network
     // Определяем наши кнопки. Пока что только одна - Атака.
     public enum PlayerInputButtons
     {
-        Attack = 0
+        Attack = 0,
+        Interact = 1
     }
 
     public struct NetworkInputData : INetworkInput
