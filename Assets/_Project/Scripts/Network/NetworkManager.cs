@@ -47,6 +47,7 @@ namespace _Project.Scripts.Network
             }
 
             _networkRunner = gameObject.AddComponent<NetworkRunner>();
+            gameObject.AddComponent<ECSNetworkTicker>();
             _networkRunner.ProvideInput = true;
             _networkRunner.AddCallbacks(this);
 

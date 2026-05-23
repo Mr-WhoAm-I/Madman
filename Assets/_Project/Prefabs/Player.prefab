@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 5418109527810692047}
   - component: {fileID: 8619697322323138292}
   - component: {fileID: 5803695124328702564}
+  - component: {fileID: 9085167907810570153}
   - component: {fileID: 55891212620523115}
-  - component: {fileID: 312015045231615733}
   - component: {fileID: 6749992567039507298}
   - component: {fileID: -8435589918823312608}
   - component: {fileID: -179104619915421629}
@@ -117,13 +117,26 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
+  - {fileID: 9085167907810570153}
   - {fileID: 55891212620523115}
-  - {fileID: 312015045231615733}
   - {fileID: 6749992567039507298}
   - {fileID: -8435589918823312608}
   - {fileID: -179104619915421629}
   - {fileID: 1910614221998937192}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &9085167907810570153
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6598462556209755569}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8122ccf9102a4fe59ecee42d6e5a84b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerNetworkBridge
+  moveSpeed: 5
 --- !u!114 &55891212620523115
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -141,19 +154,6 @@ MonoBehaviour:
   SyncParent: 0
   _autoAOIOverride: 1
   DisableSharedModeInterpolation: 0
---- !u!114 &312015045231615733
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6598462556209755569}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 91b670fa48bd40479613ac1521bed046, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerNetworkMovement
-  speed: 5
 --- !u!114 &6749992567039507298
 MonoBehaviour:
   m_ObjectHideFlags: 0

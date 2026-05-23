@@ -6,19 +6,22 @@ using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.ECS.Systems
 {
+    [UpdateInGroup(typeof(FusionUpdateGroup))]
     [BurstCompile]
     public partial struct PlayerMovementSystem : ISystem
     {
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            float deltaTime = SystemAPI.Time.DeltaTime;
+            // Пытаемся получить время сети. Если его еще нет — выходим (чтобы не было крашей).
+            if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
+                return;
+
+            var deltaTime = timeComponent.DeltaTime;
 
             foreach (var (transform, input, movement) in SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerInputComponent>, RefRO<PlayerMovementComponent>>())
             {
-                float3 moveDirection = new float3(input.ValueRO.MovementVector.x, input.ValueRO.MovementVector.y, 0f);
-                
-                // Исправленная строка: обращаемся напрямую к Position через ValueRW (Read-Write)
+                var moveDirection = new float3(input.ValueRO.MovementVector.x, input.ValueRO.MovementVector.y, 0f);
                 transform.ValueRW.Position += moveDirection * movement.ValueRO.MoveSpeed * deltaTime;
             }
         }
