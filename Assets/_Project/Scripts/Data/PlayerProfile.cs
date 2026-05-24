@@ -7,6 +7,7 @@ namespace _Project.Scripts.Data
     [Serializable]
     public class PlayerProfile
     {
+        public string Nickname = "Player_" + UnityEngine.Random.Range(1000, 9999);
         // Список данных для сериализации (Unity понимает List, но не Dictionary)
         public int LastSelectedArchetypeID = 0;
         public List<ArchetypeEntry> ProgressList = new ();

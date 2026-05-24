@@ -50,6 +50,13 @@ namespace _Project.Scripts.Core
             // ВЫЗЫВАЕМ СОБЫТИЕ: Все, кто подписан, узнают о смене класса
             OnArchetypeChanged?.Invoke(archetypeID);
         }
+        
+        public void SetNickname(string newName)
+        {
+            if (string.IsNullOrWhiteSpace(newName)) return;
+            CurrentProfile.Nickname = newName;
+            SaveGame();
+        }
 
         public PlayerProgressionData GetActiveArchetypeData()
         {

@@ -12,6 +12,7 @@ namespace _Project.Scripts.Network
     {
         public static NetworkManager Instance;
         public List<SessionInfo> AvailableSessions { get; private set; } = new();
+        public event Action<List<SessionInfo>> OnSessionListUpdatedEvent;
         
         [Header("Настройки спавна")]
         public NetworkPrefabRef playerPrefab;
@@ -19,6 +20,7 @@ namespace _Project.Scripts.Network
         private NetworkRunner _networkRunner;
         private PlayerControls _playerControls;
         private readonly Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
+        
 
         private const ushort DefaultLanPort = 27015;
 
@@ -104,6 +106,28 @@ namespace _Project.Scripts.Network
             return false;
         }
 
+        public async Task HostOnlineGame(string roomName)
+        {
+            Debug.Log($"[NetworkManager] Миграция: Создаем онлайн-комнату '{roomName}'");
+            // Закрываем текущую сессию и запускаем OnlineHost
+            await StartNetworkSession(NetworkGameMode.OnlineHost, roomName);
+        }
+
+        public async Task JoinOnlineGame(string roomName)
+        {
+            Debug.Log($"[NetworkManager] Миграция: Подключаемся к '{roomName}'");
+            // Закрываем текущую сессию и подключаемся к чужой
+            await StartNetworkSession(NetworkGameMode.OnlineClient, roomName);
+        }
+
+        public async Task BrowseOnlineGames()
+        {
+            Debug.Log($"[NetworkManager] Миграция: Вход в лобби для поиска...");
+            // Фокус Fusion: Если мы запускаем Client с ПУСТЫМ именем сессии (""), 
+            // он не заходит в игру, а подключается к Лобби и начинает присылать списки серверов!
+            await StartNetworkSession(NetworkGameMode.OnlineClient, "");
+        }
+        
         // --- ИМПЛЕМЕНТАЦИЯ ПОЛУЧЕНИЯ ИНПУТА ---
         public void OnInput(NetworkRunner runner, NetworkInput input)
         {
@@ -157,24 +181,52 @@ namespace _Project.Scripts.Network
             AvailableSessions = sessionList;
             Debug.Log($"[NetworkManager] Найдено сессий: {sessionList.Count}");
     
-            // Здесь можно вызвать событие (Action), чтобы обновить UI
-            // OnSessionListChanged?.Invoke(sessionList);
+            // Вызываем событие, чтобы передать список в наш UI
+            OnSessionListUpdatedEvent?.Invoke(sessionList);
         }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) {}
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) {}
         public void OnSceneLoadDone(NetworkRunner runner)
         {
-            // Этот метод вызывается автоматически Fusion, когда сцена загружена у всех клиентов
+            // Этот метод вызывается автоматически Fusion, когда сцена загружена
             if (!runner.IsServer) return;
-            Debug.Log("[NetworkManager] Сцена загружена. Переспавниваем игроков...");
+            Debug.Log("[NetworkManager] Сцена загружена. Проверяем состояние игроков...");
         
-            // Перебираем всех, кто был подключен к сессии
+            // Определяем точку спавна на новой сцене
+            var spawnPos = Vector3.zero;
+        
+            // Ищем пустой объект-точку спавна на новой сцене (если он у вас есть)
+            var spawnPoint = GameObject.FindWithTag("SpawnPoint");
+            if (spawnPoint != null)
+            {
+                spawnPos = spawnPoint.transform.position;
+            }
+
             foreach (var player in runner.ActivePlayers)
             {
-                // Если у игрока еще нет персонажа, создаем его
-                if (_spawnedCharacters.ContainsKey(player)) continue;
-                var playerObject = runner.Spawn(playerPrefab, Vector3.zero, Quaternion.identity, player);
-                _spawnedCharacters.Add(player, playerObject);
+                // ИСПРАВЛЕНИЕ:
+                // Пытаемся достать объект из словаря. Если игрока там нет ИЛИ 
+                // объект равен null (был уничтожен Unity при выгрузке сцены Хаба) — спавним его заново!
+                if (!_spawnedCharacters.TryGetValue(player, out var networkObject) || networkObject == null)
+                {
+                    Debug.Log($"[NetworkManager] Игрок {player} уничтожен или не найден на новой сцене. Спавним персонажа в {spawnPos}...");
+                
+                    var playerObject = runner.Spawn(playerPrefab, spawnPos, Quaternion.identity, player);
+                
+                    // Перезаписываем или добавляем живую ссылку на новый GameObject в словарь
+                    if (_spawnedCharacters.ContainsKey(player))
+                    {
+                        _spawnedCharacters[player] = playerObject;
+                    }
+                    else
+                    {
+                        _spawnedCharacters.Add(player, playerObject);
+                    }
+                }
+                else
+                {
+                    Debug.Log($"[NetworkManager] Игрок {player} уже имеет живой объект на сцене. Пропускаем спавн.");
+                }
             }
         }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) {}
