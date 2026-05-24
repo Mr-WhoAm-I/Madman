@@ -1,3 +1,5 @@
+using System; // <-- Добавить обязательно
+using System.Linq;
 using UnityEngine;
 using _Project.Scripts.Data;
 
@@ -8,6 +10,12 @@ namespace _Project.Scripts.Core
         public static ProfileController Instance { get; private set; }
         
         public PlayerProfile CurrentProfile { get; private set; }
+        
+        [Header("База данных")]
+        public ArchetypeData[] AllArchetypes;
+
+        // НОВОЕ: Событие, которое срабатывает при смене класса
+        public event Action<int> OnArchetypeChanged;
 
         private void Awake()
         {
@@ -15,7 +23,7 @@ namespace _Project.Scripts.Core
             {
                 Instance = this;
                 transform.parent = null;
-                DontDestroyOnLoad(gameObject); // Чтобы профиль не удалялся при смене сцен
+                DontDestroyOnLoad(gameObject);
                 LoadGame();
             }
             else
@@ -26,9 +34,7 @@ namespace _Project.Scripts.Core
 
         private void LoadGame()
         {
-            // Используем наш SaveManager, который мы создали ранее
             CurrentProfile = SaveManager.LoadProfile();
-            Debug.Log("[ProfileController] Профиль успешно загружен.");
         }
 
         public void SaveGame()
@@ -39,12 +45,21 @@ namespace _Project.Scripts.Core
         public void SetActiveArchetype(int archetypeID)
         {
             CurrentProfile.LastSelectedArchetypeID = archetypeID;
-            SaveGame(); // Сразу сохраняем выбор
+            SaveGame(); 
+            
+            // ВЫЗЫВАЕМ СОБЫТИЕ: Все, кто подписан, узнают о смене класса
+            OnArchetypeChanged?.Invoke(archetypeID);
         }
 
         public PlayerProgressionData GetActiveArchetypeData()
         {
             return CurrentProfile.GetProgressForArchetype(CurrentProfile.LastSelectedArchetypeID);
+        }
+
+        public ArchetypeData GetArchetypeAsset(int id)
+        {
+            if (AllArchetypes == null || AllArchetypes.Length == 0) return null;
+            return AllArchetypes.FirstOrDefault(a => a.archetypeID == id) ?? AllArchetypes[0];
         }
         
         public void AddExperience(float amount)

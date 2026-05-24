@@ -162,7 +162,21 @@ namespace _Project.Scripts.Network
         }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) {}
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) {}
-        public void OnSceneLoadDone(NetworkRunner runner) {}
+        public void OnSceneLoadDone(NetworkRunner runner)
+        {
+            // Этот метод вызывается автоматически Fusion, когда сцена загружена у всех клиентов
+            if (!runner.IsServer) return;
+            Debug.Log("[NetworkManager] Сцена загружена. Переспавниваем игроков...");
+        
+            // Перебираем всех, кто был подключен к сессии
+            foreach (var player in runner.ActivePlayers)
+            {
+                // Если у игрока еще нет персонажа, создаем его
+                if (_spawnedCharacters.ContainsKey(player)) continue;
+                var playerObject = runner.Spawn(playerPrefab, Vector3.zero, Quaternion.identity, player);
+                _spawnedCharacters.Add(player, playerObject);
+            }
+        }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) {}
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) {}
         public void OnSceneLoadStart(NetworkRunner runner) {}

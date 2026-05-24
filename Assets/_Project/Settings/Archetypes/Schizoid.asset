@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Data.ArchetypeData
   archetypeName: Schizoid
   description: "\u041B\u0430\u0437\u0443\u0442\u0447\u0438\u043A"
-  archetypeID: 3
+  archetypeID: 2
   maxHealth: 90
   moveSpeed: 8
   maxMana: 200

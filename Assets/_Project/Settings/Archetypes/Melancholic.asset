@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Data.ArchetypeData
   archetypeName: Melancholic
   description: "\u041A\u043E\u043D\u0442\u0440\u043E\u043B\u043B\u0435\u0440"
-  archetypeID: 1
+  archetypeID: 3
   maxHealth: 120
   moveSpeed: 5
   maxMana: 300
