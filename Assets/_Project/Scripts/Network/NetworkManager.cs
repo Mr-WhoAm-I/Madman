@@ -40,8 +40,34 @@ namespace _Project.Scripts.Network
             }
         }
 
+        private async Task ShutdownCurrentSession()
+        {
+            if (_networkRunner != null)
+            {
+                Debug.Log("[NetworkManager] Выключаем текущую сессию и очищаем память...");
+                
+                // Корректно отключаемся от сети Photon
+                await _networkRunner.Shutdown();
+                
+                // Удаляем компоненты старой сессии, чтобы освободить место
+                Destroy(_networkRunner);
+                
+                var ticker = GetComponent<ECSNetworkTicker>();
+                if (ticker != null) Destroy(ticker);
+        
+                _networkRunner = null;
+                _spawnedCharacters.Clear(); // Забываем старые кубики игроков
+                
+                // ВАЖНО: Unity удаляет компоненты только в конце кадра. 
+                // Мы обязаны подождать один кадр (Yield), иначе AddComponent в следующем методе выдаст ту же ошибку!
+                await Task.Yield(); 
+            }
+        }
+
         public async Task<bool> StartNetworkSession(NetworkGameMode mode, string sessionName = "MadmanSession", string ipAddress = "127.0.0.1")
         {
+            await ShutdownCurrentSession();
+            
             if (_networkRunner != null)
             {
                 await _networkRunner.Shutdown();

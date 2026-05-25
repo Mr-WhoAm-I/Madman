@@ -52,6 +52,7 @@ namespace _Project.Scripts.UI
             }
             else
             {
+                Debug.Log("[DEBUG_AWAKE] ВНИМАНИЕ! HUDManager уничтожил сам себя, так как найден дубликат!");
                 Destroy(gameObject);
                 return;
             }
@@ -70,6 +71,11 @@ namespace _Project.Scripts.UI
             }
         }
 
+        private void Start()
+        {
+            Debug.Log("[DEBUG_START] HUDManager жив! InputActions включены.");
+        }
+        
         private void OnEnable()
         {
             _inputActions = new PlayerControls();
