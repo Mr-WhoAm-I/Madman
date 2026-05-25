@@ -18,8 +18,10 @@ namespace _Project.Scripts.Network
         public NetworkPrefabRef playerPrefab;
 
         private NetworkRunner _networkRunner;
+        private GameObject _runnerObject;
         private PlayerControls _playerControls;
         private readonly Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
+        private bool _isIntentionalShutdown = false;
         
 
         private const ushort DefaultLanPort = 27015;
@@ -46,42 +48,47 @@ namespace _Project.Scripts.Network
             {
                 Debug.Log("[NetworkManager] Выключаем текущую сессию и очищаем память...");
                 
-                // Корректно отключаемся от сети Photon
+                _isIntentionalShutdown = true; 
+                
                 await _networkRunner.Shutdown();
                 
-                // Удаляем компоненты старой сессии, чтобы освободить место
-                Destroy(_networkRunner);
-                
-                var ticker = GetComponent<ECSNetworkTicker>();
-                if (ticker != null) Destroy(ticker);
+                if (_runnerObject != null)
+                {
+                    Destroy(_runnerObject);
+                }
         
                 _networkRunner = null;
-                _spawnedCharacters.Clear(); // Забываем старые кубики игроков
+                _runnerObject = null;
+                _spawnedCharacters.Clear(); 
                 
-                // ВАЖНО: Unity удаляет компоненты только в конце кадра. 
-                // Мы обязаны подождать один кадр (Yield), иначе AddComponent в следующем методе выдаст ту же ошибку!
-                await Task.Yield(); 
+                await Task.Delay(50); 
+                
+                // Снимаем флаг
+                _isIntentionalShutdown = false; 
             }
         }
 
         public async Task<bool> StartNetworkSession(NetworkGameMode mode, string sessionName = "MadmanSession", string ipAddress = "127.0.0.1")
         {
             await ShutdownCurrentSession();
-            
-            if (_networkRunner != null)
-            {
-                await _networkRunner.Shutdown();
-                Destroy(_networkRunner);
-            }
 
-            _networkRunner = gameObject.AddComponent<NetworkRunner>();
-            gameObject.AddComponent<ECSNetworkTicker>();
+            // Создаем отдельный объект-носитель для Fusion
+            _runnerObject = new GameObject("FusionNetworkRunner_Instance");
+            
+            DontDestroyOnLoad(_runnerObject);
+
+            _networkRunner = _runnerObject.AddComponent<NetworkRunner>();
+            _runnerObject.AddComponent<ECSNetworkTicker>();
+            
             _networkRunner.ProvideInput = true;
-            _networkRunner.AddCallbacks(this);
+            
+            // ВАЖНО: Коллбеки всё равно направляем в наш синглтон (this)
+            _networkRunner.AddCallbacks(this); 
 
             var startGameArgs = new StartGameArgs
             {
-                SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+                SceneManager = _runnerObject.AddComponent<NetworkSceneManagerDefault>(),
+                PlayerCount = 4
             };
 
             switch (mode)
@@ -149,9 +156,29 @@ namespace _Project.Scripts.Network
         public async Task BrowseOnlineGames()
         {
             Debug.Log($"[NetworkManager] Миграция: Вход в лобби для поиска...");
-            // Фокус Fusion: Если мы запускаем Client с ПУСТЫМ именем сессии (""), 
-            // он не заходит в игру, а подключается к Лобби и начинает присылать списки серверов!
-            await StartNetworkSession(NetworkGameMode.OnlineClient, "");
+            
+            // 1. Убиваем текущую сессию (соло или любую другую)
+            await ShutdownCurrentSession();
+
+            // 2. Создаем чистый объект ТОЛЬКО для лобби
+            _runnerObject = new GameObject("FusionNetworkRunner_Lobby");
+            DontDestroyOnLoad(_runnerObject);
+
+            _networkRunner = _runnerObject.AddComponent<NetworkRunner>();
+            _networkRunner.ProvideInput = true;
+            _networkRunner.AddCallbacks(this);
+
+            // 3. ВАЖНО: Вызываем подключение к лобби, а НЕ StartGame!
+            var result = await _networkRunner.JoinSessionLobby(SessionLobby.ClientServer);
+
+            if (result.Ok)
+            {
+                Debug.Log("[NetworkManager] Успешно зашли в Лобби. Ожидаем списки серверов...");
+            }
+            else
+            {
+                Debug.LogError($"[NetworkManager] Ошибка входа в лобби: {result.ShutdownReason}");
+            }
         }
         
         // --- ИМПЛЕМЕНТАЦИЯ ПОЛУЧЕНИЯ ИНПУТА ---
@@ -196,9 +223,23 @@ namespace _Project.Scripts.Network
 
         // --- ОБЯЗАТЕЛЬНЫЕ МЕТОДЫ ИНТЕРФЕЙСА FUSION БЕЗ ЛИШНЕГО МУСОРА ---
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) {}
-        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) {}
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) 
+        {
+            Debug.Log($"[NetworkManager] Остановка раннера. Причина: {shutdownReason}");
+
+            // Если выключились не мы сами, а произошла ошибка/потеря связи
+            if (_isIntentionalShutdown || shutdownReason == ShutdownReason.Ok) return;
+            Debug.LogError("[NetworkManager] Внезапная потеря связи! Аварийное возвращение в соло-режим...");
+                
+            // Запускаем асинхронный процесс переподключения в наш соло-Хаб (используя discard `_`)
+            _ = StartNetworkSession(NetworkGameMode.Solo);
+        }
         public void OnConnectedToServer(NetworkRunner runner) {}
-        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {}
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) 
+        {
+            Debug.LogWarning($"[NetworkManager] Отключены от сервера. Причина: {reason}");
+            // Fusion сам вызовет OnShutdown после дисконнекта, так что логику пишем там.
+        }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) {}
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) {}
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) {}

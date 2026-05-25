@@ -29,7 +29,7 @@ namespace _Project.Scripts.UI
 
         [Header("Реестр Окон (Новая система)")]
         [Tooltip("Перетащите сюда все UI панели, на которых висит скрипт UIWindow")]
-        public List<UIWindow> GameWindows = new List<UIWindow>();
+        public List<UIWindow> GameWindows = new();
 
         // --- ПЕРЕМЕННЫЕ ВЗАИМОДЕЙСТВИЯ ---
         public bool IsInteractionSuspended { get; private set; } // Открыто ли сейчас меню?
@@ -40,7 +40,7 @@ namespace _Project.Scripts.UI
         private bool _isMobile;
         private PlayerControls _inputActions;
         private UIWindow _currentOpenWindow;
-        private Dictionary<UIWindowType, UIWindow> _windowCache = new Dictionary<UIWindowType, UIWindow>();
+        private Dictionary<UIWindowType, UIWindow> _windowCache = new();
 
         private void Awake()
         {

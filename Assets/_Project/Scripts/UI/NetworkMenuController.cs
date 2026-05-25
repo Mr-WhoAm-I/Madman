@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using Fusion;
@@ -53,21 +54,29 @@ namespace _Project.Scripts.UI
         }
 
         // ВЫЗЫВАЕТСЯ ПО КНОПКЕ ИЗ UI: "Применить настройки сети / Искать игры"
-        public void OnApplyNetworkSettingsClicked()
+        public async void OnApplyNetworkSettingsClicked()
         {
-            if (HostToggle.isOn)
+            try
             {
-                // Если тумблер включен - создаем свой сервер
-                var room = string.IsNullOrEmpty(RoomNameInput.text) 
-                    ? ProfileController.Instance.CurrentProfile.Nickname + "_World" 
-                    : RoomNameInput.text;
-                    
-                _ = NetworkManager.Instance.HostOnlineGame(room);
+                if (HostToggle.isOn)
+                {
+                    // Если тумблер включен - создаем свой сервер
+                    var room = string.IsNullOrEmpty(RoomNameInput.text) 
+                        ? ProfileController.Instance.CurrentProfile.Nickname + "_World" 
+                        : RoomNameInput.text;
+                        
+                    await NetworkManager.Instance.HostOnlineGame(room);
+                }
+                else
+                {
+                    // Если тумблер выключен - идем в лобби искать чужие сервера
+                    await NetworkManager.Instance.BrowseOnlineGames();
+                }
             }
-            else
+            catch (Exception e)
             {
-                // Если тумблер выключен - идем в лобби искать чужие сервера
-                _ = NetworkManager.Instance.BrowseOnlineGames();
+                // Теперь мы будем видеть в консоли ЛЮБЫЕ ошибки, если они возникнут при создании сервера
+                Debug.LogError($"[NetworkMenu] Критическая ошибка сети: {e.Message}\n{e.StackTrace}");
             }
         }
 

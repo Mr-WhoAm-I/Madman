@@ -8,6 +8,7 @@ namespace _Project.Scripts.UI
 
         public virtual void Open()
         {
+            Debug.Log("[UIWindowOpenerButton] Open");
             gameObject.SetActive(true);
         }
 
