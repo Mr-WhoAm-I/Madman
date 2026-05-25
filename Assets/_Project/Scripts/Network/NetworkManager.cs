@@ -22,6 +22,7 @@ namespace _Project.Scripts.Network
         private PlayerControls _playerControls;
         private readonly Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
         private bool _isIntentionalShutdown = false;
+        private bool _isRecovering = false;
         
 
         private const ushort DefaultLanPort = 27015;
@@ -155,7 +156,7 @@ namespace _Project.Scripts.Network
 
         public async Task BrowseOnlineGames()
         {
-            Debug.Log($"[NetworkManager] Миграция: Вход в лобби для поиска...");
+            Debug.Log("[NetworkManager] Миграция: Вход в лобби для поиска...");
             
             // 1. Убиваем текущую сессию (соло или любую другую)
             await ShutdownCurrentSession();
@@ -177,7 +178,7 @@ namespace _Project.Scripts.Network
             }
             else
             {
-                Debug.LogError($"[NetworkManager] Ошибка входа в лобби: {result.ShutdownReason}");
+                Debug.LogWarning($"[NetworkManager] Ошибка входа в лобби: {result.ShutdownReason}");
             }
         }
         
@@ -227,18 +228,36 @@ namespace _Project.Scripts.Network
         {
             Debug.Log($"[NetworkManager] Остановка раннера. Причина: {shutdownReason}");
 
-            // Если выключились не мы сами, а произошла ошибка/потеря связи
             if (_isIntentionalShutdown || shutdownReason == ShutdownReason.Ok) return;
-            Debug.LogError("[NetworkManager] Внезапная потеря связи! Аварийное возвращение в соло-режим...");
-                
-            // Запускаем асинхронный процесс переподключения в наш соло-Хаб (используя discard `_`)
-            _ = StartNetworkSession(NetworkGameMode.Solo);
+            
+            Debug.LogError("[NetworkManager] Внезапная потеря связи (Shutdown)! Аварийное возвращение в соло-режим...");
+            _ = RecoverToSoloAsync();
         }
         public void OnConnectedToServer(NetworkRunner runner) {}
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) 
         {
             Debug.LogWarning($"[NetworkManager] Отключены от сервера. Причина: {reason}");
-            // Fusion сам вызовет OnShutdown после дисконнекта, так что логику пишем там.
+            
+            // Если мы не выходили сами, значит хост отвалился или пропал интернет
+            if (!_isIntentionalShutdown)
+            {
+                Debug.LogError("[NetworkManager] Таймаут/потеря хоста! Аварийное возвращение в соло-режим...");
+                _ = RecoverToSoloAsync();
+            }
+        }
+
+        private async Task RecoverToSoloAsync()
+        {
+            if (_isRecovering) return; // Блокируем, если процесс спасения уже запущен
+            _isRecovering = true;
+
+            // Ждем полсекунды, пока Fusion полностью освободит ресурсы (защита от Race Condition)
+            await Task.Delay(500); 
+            
+            // StartNetworkSession сам корректно убьет зависший раннер и загрузит нас в Solo
+            await StartNetworkSession(NetworkGameMode.Solo);
+
+            _isRecovering = false;
         }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) {}
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) {}

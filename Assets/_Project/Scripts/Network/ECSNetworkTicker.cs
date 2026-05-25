@@ -23,6 +23,9 @@ namespace _Project.Scripts.Network
             
             _entityManager = world.EntityManager;
             _fusionGroup = world.GetOrCreateSystemManaged<FusionUpdateGroup>();
+            
+            var oldTimeEntities = _entityManager.CreateEntityQuery(typeof(NetworkTimeComponent));
+            _entityManager.DestroyEntity(oldTimeEntities);
             _timeEntity = _entityManager.CreateEntity(typeof(NetworkTimeComponent));
             
             _isInitialized = true;
