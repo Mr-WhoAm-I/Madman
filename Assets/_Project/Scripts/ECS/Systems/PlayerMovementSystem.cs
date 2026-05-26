@@ -21,7 +21,7 @@ namespace _Project.Scripts.ECS.Systems
 
             foreach (var (transform, input, movement) in SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerInputComponent>, RefRO<PlayerMovementComponent>>())
             {
-                var moveDirection = new float3(input.ValueRO.MovementVector.x, input.ValueRO.MovementVector.y, 0f);
+                var moveDirection = new float3(input.ValueRO.MovementInput.x, input.ValueRO.MovementInput.y, 0f);
                 transform.ValueRW.Position += moveDirection * movement.ValueRO.MoveSpeed * deltaTime;
             }
         }

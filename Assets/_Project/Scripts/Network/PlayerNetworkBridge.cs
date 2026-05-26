@@ -83,12 +83,16 @@ namespace _Project.Scripts.Network
             _entityManager.SetComponentData(_playerEntity, ecsTransform);
 
             // 2. ИНПУТ
-            if (GetInput(out NetworkInputData data))
-            {
-                var inputComp = _entityManager.GetComponentData<PlayerInputComponent>(_playerEntity);
-                inputComp.MovementVector = new float2(data.MovementInput.x, data.MovementInput.y);
-                _entityManager.SetComponentData(_playerEntity, inputComp);
-            }
+            if (!GetInput(out NetworkInputData data)) return;
+            if (!_entityManager.Exists(_playerEntity)) return;
+            var inputComponent = _entityManager.GetComponentData<PlayerInputComponent>(_playerEntity);
+                    
+            inputComponent.PreviousButtons = inputComponent.Buttons;
+            inputComponent.MovementInput = data.MovementInput;
+            inputComponent.AimDirection = data.AimDirection;
+            inputComponent.Buttons = data.Buttons; // Пробрасываем кнопки
+                    
+            _entityManager.SetComponentData(_playerEntity, inputComponent);
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -126,6 +130,26 @@ namespace _Project.Scripts.Network
             {
                 _entityManager.DestroyEntity(_playerEntity);
             }
+        }
+        
+        // Возвращает процент отката от 0 до 1 (удобно для Image.fillAmount в Unity UI)
+        public float GetSkillCooldownPercentage()
+        {
+            if (!_entityManager.Exists(_playerEntity)) return 0f; // 0 значит скилл готов, затемнение не нужно
+            var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
+                
+            // Если скилл в откате (зарядов нет), считаем процент
+            if (skillState.CurrentCharges < skillState.MaxCharges && skillState.MaxCooldown > 0)
+            {
+                return skillState.CurrentCooldown / skillState.MaxCooldown;
+            }
+            return 0f; // 0 значит скилл готов, затемнение не нужно
+        }
+
+        // Возвращает количество зарядов (удобно, чтобы написать циферку "2" на иконке у Параноика)
+        public int GetSkillCharges()
+        {
+            return _entityManager.Exists(_playerEntity) ? _entityManager.GetComponentData<SkillStateComponent>(_playerEntity).CurrentCharges : 0;
         }
     }
 }

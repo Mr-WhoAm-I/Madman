@@ -23,6 +23,14 @@ namespace _Project.Scripts.ECS.Authoring
                 { 
                     MoveSpeed = authoring.moveSpeed 
                 });
+                
+                AddComponent(entity, new SkillStateComponent 
+                { 
+                    MaxCooldown = 5f, 
+                    CurrentCooldown = 0f, 
+                    MaxCharges = 1, 
+                    CurrentCharges = 1 // Со старта игры скилл готов к использованию
+                });
             }
         }
     }

@@ -193,8 +193,31 @@ namespace _Project.Scripts.Network
                 return;
             }
 
-            var moveInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
-            inputData.MovementInput = moveInput;
+            inputData.MovementInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
+
+            // 2. Направление прицеливания (Aim)
+            var aimValue = _playerControls.Gameplay.Aim.ReadValue<Vector2>();
+            
+            // Если игрок на ПК (играет мышкой) - aimValue это координаты экрана. 
+            if (aimValue.magnitude > 1f && Camera.main != null) 
+            {
+                // Получаем позицию курсора в мире
+                var worldMousePos = Camera.main.ScreenToWorldPoint(new Vector3(aimValue.x, aimValue.y, -Camera.main.transform.position.z));
+                
+                var screenCenter = new Vector3(Screen.width / 2f, Screen.height / 2f, 0);
+                var worldCenter = Camera.main.ScreenToWorldPoint(new Vector3(screenCenter.x, screenCenter.y, -Camera.main.transform.position.z));
+                
+                var direction = (new Vector2(worldMousePos.x, worldMousePos.y) - new Vector2(worldCenter.x, worldCenter.y)).normalized;
+                inputData.AimDirection = direction;
+            }
+            else
+            {
+                // Если игрок на мобилке (джойстик) - aimValue это уже готовое направление от -1 до 1
+                inputData.AimDirection = aimValue.normalized;
+            }
+
+            var isSkillPressed = _playerControls.Gameplay.Skill.IsPressed();
+            inputData.Buttons.Set(PlayerInputButtons.Skill, isSkillPressed);
 
             input.Set(inputData);
         }
