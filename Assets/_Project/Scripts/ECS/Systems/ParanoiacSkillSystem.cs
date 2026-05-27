@@ -24,7 +24,7 @@ namespace _Project.Scripts.ECS.Systems
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             // ФИЛЬТР: Только сущности с ParanoiacTag
-            foreach (var (input, skillState, transform, archetype) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>, RefRO<LocalTransform>, RefRO<ArchetypeComponent>>().WithAll<ParanoiacTag>())
+            foreach (var (input, skillState, transform, archetype, owner) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>, RefRO<LocalTransform>, RefRO<ArchetypeComponent>, RefRO<PlayerOwnerComponent>>().WithAll<ParanoiacTag>())
             {
                 // Читаем биты кнопки (с учетом Server-Authoritative Input)
                 bool isSkillPressed = (input.ValueRO.Buttons.Bits & (1 << (int)PlayerInputButtons.Skill)) != 0;
@@ -50,7 +50,8 @@ namespace _Project.Scripts.ECS.Systems
                     ecb.AddComponent(requestEntity, new SpawnTurretRequest
                     {
                         Position = targetPosition,
-                        ArchetypeID = archetype.ValueRO.ArchetypeID // Передаем ID параноика
+                        ArchetypeID = archetype.ValueRO.ArchetypeID,
+                        Owner = owner.ValueRO.Player // <--- Передаем владельца
                     });
                 }
             }

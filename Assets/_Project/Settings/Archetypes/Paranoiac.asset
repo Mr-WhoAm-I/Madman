@@ -21,8 +21,4 @@ MonoBehaviour:
   weaponSlotsCount: 1
   allowedWeaponCategory: 1
   defaultWeapon: {fileID: 11400000, guid: d909471ab4f9cf448a708b2496541d71, type: 2}
-  turretPrefab:
-    RawGuidValue: 8f4922245f5f8824a8d8f1121ccb7053
-  turretBaseHealth: 500
-  turretTauntDuration: 5
-  turretTauntRadius: 10
+  activeSkillData: {fileID: 11400000, guid: fdd2d26c051a2c44ca7be3fb3af2b963, type: 2}

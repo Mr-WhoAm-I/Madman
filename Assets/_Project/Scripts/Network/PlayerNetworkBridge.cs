@@ -22,57 +22,44 @@ namespace _Project.Scripts.Network
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
             
-            // 1. ДОБАВЛЯЕМ typeof(SkillStateComponent) В СПИСОК
             _playerEntity = _entityManager.CreateEntity(
                 typeof(PlayerTag),
                 typeof(PlayerInputComponent),
                 typeof(PlayerMovementComponent),
                 typeof(LocalTransform),
                 typeof(PlayerTransformSync),
-                typeof(SkillStateComponent) // <--- ВОТ СЮДА
+                typeof(SkillStateComponent) 
             );
 
             _entityManager.SetComponentData(_playerEntity, new PlayerMovementComponent { MoveSpeed = 5f });
             _entityManager.SetComponentData(_playerEntity, LocalTransform.FromPosition(transform.position));
             _entityManager.SetComponentData(_playerEntity, new PlayerTransformSync { Value = transform });
             
-            // 2. ИНИЦИАЛИЗИРУЕМ ЗНАЧЕНИЯ (перенесли логику из PlayerAuthoring)
-            _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
-            { 
-                MaxCooldown = 5f, 
-                CurrentCooldown = 0f, 
-                MaxCharges = 1, 
-                CurrentCharges = 1 // Со старта игры скилл готов к использованию
-            });
+            // МЫ УБРАЛИ ОТСЮДА ХАРДКОД SkillStateComponent! 
+            // Он теперь задается динамически внутри ApplyArchetypeStatsToECS() -> UpdateArchetypeTag()
 
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
             
-            // Если это НАШ локальный игрок
             if (HasInputAuthority)
             {
                 LocalPlayer = this;
                 ProfileController.Instance.OnArchetypeChanged += HandleLocalArchetypeChanged;
                 
-                // Отправляем текущий сохраненный профиль
                 var mySavedArchetypeID = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
                 HandleLocalArchetypeChanged(mySavedArchetypeID);
             }
 
-            // ПРИНУДИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ
             ApplyArchetypeStatsToECS();
         }
 
-        // Вызывается, когда мы локально поменяли класс в UI (или при спавне)
         private void HandleLocalArchetypeChanged(int newID)
         {
             if (HasStateAuthority)
             {
-                // Хост имеет право менять Networked переменные напрямую
                 NetworkArchetypeID = newID;
             }
             else
             {
-                // Клиент должен вежливо попросить сервер (Хоста) сделать это
                 Rpc_SetArchetype(newID);
             }
         }
@@ -81,7 +68,6 @@ namespace _Project.Scripts.Network
         {
             if (!_entityManager.Exists(_playerEntity)) return;
 
-            // --- ОТСЛЕЖИВАНИЕ ИЗМЕНЕНИЙ СТАТОВ ПО СЕТИ ---
             foreach (var change in _changeDetector.DetectChanges(this))
             {
                 if (change == nameof(NetworkArchetypeID))
@@ -90,12 +76,10 @@ namespace _Project.Scripts.Network
                 }
             }
 
-            // 1. ROLLBACK-СИНХРОНИЗАЦИЯ
             var ecsTransform = _entityManager.GetComponentData<LocalTransform>(_playerEntity);
             ecsTransform.Position = transform.position;
             _entityManager.SetComponentData(_playerEntity, ecsTransform);
 
-            // 2. ИНПУТ
             if (!GetInput(out NetworkInputData data)) return;
             if (!_entityManager.Exists(_playerEntity)) return;
             var inputComponent = _entityManager.GetComponentData<PlayerInputComponent>(_playerEntity);
@@ -103,7 +87,7 @@ namespace _Project.Scripts.Network
             inputComponent.PreviousButtons = inputComponent.Buttons;
             inputComponent.MovementInput = data.MovementInput;
             inputComponent.AimDirection = data.AimDirection;
-            inputComponent.Buttons = data.Buttons; // Пробрасываем кнопки
+            inputComponent.Buttons = data.Buttons; 
                     
             _entityManager.SetComponentData(_playerEntity, inputComponent);
             
@@ -117,7 +101,6 @@ namespace _Project.Scripts.Network
                         weapon.ShootTornado360();
                     }
                 }
-                // Удаляем тег и на сервере, и на клиенте (чтобы не стрелять вечно)
                 _entityManager.RemoveComponent<Trigger360ShootTag>(_playerEntity);
             }
         }
@@ -147,43 +130,46 @@ namespace _Project.Scripts.Network
             Debug.Log($"[NetworkBridge] Применены статы архетипа {archetypeData.archetypeName}. Скорость: {movementComp.MoveSpeed}");
         }
 
-        // Логика конечного автомата (State Machine) на тегах
         private void UpdateArchetypeTag(int archetypeID)
         {
             if (!_entityManager.HasComponent<ArchetypeComponent>(_playerEntity))
                 _entityManager.AddComponent<ArchetypeComponent>(_playerEntity);
             _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
+
+            // --- НОВОЕ: ЧИТАЕМ КУЛДАУН ИЗ SCRIPTABLE OBJECT ---
+            var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
+            float skillCooldown = archetypeData != null && archetypeData.activeSkillData != null 
+                ? archetypeData.activeSkillData.cooldown 
+                : 5f; // Значение по умолчанию, если навык не назначен
+
+            // Устанавливаем SkillStateComponent динамически для любого класса
+            _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
+            { 
+                MaxCooldown = skillCooldown, 
+                CurrentCooldown = 0f, 
+                MaxCharges = 1, 
+                CurrentCharges = 1 
+            });
+            // ---------------------------------------------------
             
-            // 1. Очищаем старые теги, чтобы избежать наслоения классов
             _entityManager.RemoveComponent<HystericTag>(_playerEntity);
             _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
             _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
             _entityManager.RemoveComponent<SchizoidTag>(_playerEntity);
 
-            // 2. Вешаем актуальный тег.
-            // ВАЖНО: Проверь, какие именно ID (0, 1, 2, 3) соответствуют твоим классам 
-            // в массиве ProfileController, и подставь правильные значения!
             switch (archetypeID)
             {
-                case 0: // Предположим, 0 - это Истерик
+                case 0:
                     _entityManager.AddComponent<HystericTag>(_playerEntity);
                     break;
-                case 1: // Предположим, 1 - это Параноик
+                case 1:
                     _entityManager.AddComponent<ParanoiacTag>(_playerEntity);
-                    
-                    // Пример: Параноик может иметь другие базовые настройки кулдауна
-                    _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
-                    { 
-                        MaxCooldown = 8f, // Турель откатывается дольше
-                        CurrentCooldown = 0f, 
-                        MaxCharges = 1, 
-                        CurrentCharges = 1 
-                    });
+                    // Хардкод 8f удален! Теперь кулдаун берется из CerberusTurretData.asset
                     break;
-                case 2:  // Шизоид
+                case 2:
                     _entityManager.AddComponent<SchizoidTag>(_playerEntity);
                     break;
-                case 3: // Меланхолик
+                case 3:
                     _entityManager.AddComponent<MelancholicTag>(_playerEntity);
                     break;
                 default:
@@ -194,7 +180,6 @@ namespace _Project.Scripts.Network
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
-            // Убираем за собой: отписываемся от события, чтобы избежать утечек памяти
             if (HasInputAuthority && ProfileController.Instance != null)
             {
                 ProfileController.Instance.OnArchetypeChanged -= HandleLocalArchetypeChanged;
@@ -206,21 +191,18 @@ namespace _Project.Scripts.Network
             }
         }
         
-        // Возвращает процент отката от 0 до 1 (удобно для Image.fillAmount в Unity UI)
         public float GetSkillCooldownPercentage()
         {
-            if (!_entityManager.Exists(_playerEntity)) return 0f; // 0 значит скилл готов, затемнение не нужно
+            if (!_entityManager.Exists(_playerEntity)) return 0f;
             var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
                 
-            // Если скилл в откате (зарядов нет), считаем процент
             if (skillState.CurrentCharges < skillState.MaxCharges && skillState.MaxCooldown > 0)
             {
                 return skillState.CurrentCooldown / skillState.MaxCooldown;
             }
-            return 0f; // 0 значит скилл готов, затемнение не нужно
+            return 0f;
         }
 
-        // Возвращает количество зарядов (удобно, чтобы написать циферку "2" на иконке у Параноика)
         public int GetSkillCharges()
         {
             return _entityManager.Exists(_playerEntity) ? _entityManager.GetComponentData<SkillStateComponent>(_playerEntity).CurrentCharges : 0;

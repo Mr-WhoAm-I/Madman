@@ -104,3 +104,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5469a04f5a74be281c8531e036bf9da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.ECS.Authoring.EnemyAuthoring
+  speed: 6
+  maxHealth: 50

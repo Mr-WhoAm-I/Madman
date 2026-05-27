@@ -2,70 +2,105 @@ using Unity.Entities;
 using Unity.Transforms;
 using Unity.Mathematics;
 using _Project.Scripts.ECS.Components;
-using _Project.Scripts.Network; 
+using _Project.Scripts.Network;
 
 namespace _Project.Scripts.ECS.Systems
 {
-    public partial struct EnemyMovementSystem : ISystem
+    [UpdateInGroup(typeof(FusionUpdateGroup))]
+    public partial class EnemyMovementSystem : SystemBase
     {
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate()
         {
-            // Если Менеджера еще нет, или мы КЛИЕНТ — отключаем самостоятельное движение!
-            if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.HasStateAuthority)
+            // 1. БЕЗОПАСНАЯ ПРОВЕРКА (Защита от крашей при выходе из сессии)
+            if (EnemySwarmManager.Instance == null || EnemySwarmManager.Instance.Object == null || !EnemySwarmManager.Instance.HasStateAuthority) 
+                return;
+
+            // 2. ПОЛУЧАЕМ ПРАВИЛЬНОЕ ВРЕМЯ FUSION (Защита от медленного движения)
+            float deltaTime = 0.01666f; 
+            if (SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComp))
             {
-                return; // Лоботомия: Клиент больше не двигает врагов сам
+                deltaTime = timeComp.DeltaTime;
             }
+            if (deltaTime <= 0f) deltaTime = 0.01666f; // Fallback на стандартный тик
 
-            // Если список игроков пуст (никто еще не заспавнился), врагам некуда идти
-            if (PlayerManager.AllActivePlayers.Count == 0) return;
-
-            var deltaTime = SystemAPI.Time.DeltaTime;
-            
-            // Буфер для удаления врагов (камикадзе)
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             foreach (var (transform, movement, entity) in SystemAPI.Query<RefRW<LocalTransform>, RefRO<EnemyMovementComponent>>().WithEntityAccess().WithAll<EnemyTagComponent>())
             {
                 var enemyPos = transform.ValueRO.Position;
-                var closestPlayerPos = float3.zero;
-                var minDistance = float.MaxValue;
+                float3 targetPos = float3.zero;
+                bool hasTarget = false;
+                float minDistance = float.MaxValue;
+                
                 PlayerManager closestPlayer = null;
+                TurretNetworkBridge closestTurret = null;
 
-                // 1. ИЩЕМ БЛИЖАЙШЕГО ИГРОКА ИЗ СПИСКА
-                foreach (var player in PlayerManager.AllActivePlayers)
+                // 3. ИЩЕМ АКТИВНЫЕ ТУРЕЛИ (ПРИОРИТЕТ)
+                // Обратный цикл for защищает от ошибки "Collection was modified" при уничтожении турели
+                for (int i = TurretNetworkBridge.ActiveTurrets.Count - 1; i >= 0; i--)
                 {
-                    if (player == null) continue; // Защита от отключившихся игроков
+                    var turret = TurretNetworkBridge.ActiveTurrets[i];
                     
-                    var playerPos = new float3(player.transform.position.x, player.transform.position.y, 0f);
-                    var dist = math.distance(enemyPos, playerPos);
+                    // Жесткая защита от ссылок на уничтоженные объекты (Unity null check)
+                    if (turret == null || turret.Object == null || !turret.IsTaunting) continue;
 
-                    if (!(dist < minDistance)) continue;
-                    minDistance = dist;
-                    closestPlayerPos = playerPos;
-                    closestPlayer = player; // Запоминаем, кого именно мы преследуем
+                    var turretPos = new float3(turret.transform.position.x, turret.transform.position.y, 0f);
+                    float dist = math.distance(enemyPos, turretPos);
+
+                    if (dist <= 10f && dist < minDistance) // 10f - радиус агра
+                    {
+                        minDistance = dist;
+                        targetPos = turretPos;
+                        hasTarget = true;
+                        closestTurret = turret;
+                    }
                 }
 
-                // Если по какой-то причине цель не найдена, стоим на месте
-                if (closestPlayer == null) continue;
+                // 4. ЕСЛИ НЕТ ТУРЕЛЕЙ - ИЩЕМ ИГРОКА
+                if (!hasTarget)
+                {
+                    for (int i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
+                    {
+                        var player = PlayerManager.AllActivePlayers[i];
+                        if (player == null || player.gameObject == null) continue;
 
-                var direction = closestPlayerPos - enemyPos;
+                        var playerPos = new float3(player.transform.position.x, player.transform.position.y, 0f);
+                        var dist = math.distance(enemyPos, playerPos);
+
+                        if (dist < minDistance)
+                        {
+                            minDistance = dist;
+                            targetPos = playerPos;
+                            hasTarget = true;
+                            closestPlayer = player;
+                        }
+                    }
+                }
+
+                // Если вообще никого нет на карте - стоим на месте
+                if (!hasTarget) continue;
+
+                var direction = targetPos - enemyPos;
                 var distance = math.length(direction); 
 
-                // 2. ПРОВЕРКА СТОЛКНОВЕНИЯ С БЛИЖАЙШИМ ИГРОКОМ
+                // 5. СТОЛКНОВЕНИЕ И УРОН
                 if (distance < 0.5f)
                 {
-                    // Теперь мы берем Health именно у того игрока, к которому подошли, а не статичный!
-                    var targetHealth = closestPlayer.GetComponent<Health>();
-                    
-                    if (targetHealth != null && targetHealth.HasStateAuthority)
+                    if (closestTurret != null && closestTurret.Object != null && closestTurret.HasStateAuthority)
                     {
-                        targetHealth.TakeDamage(10f); // Наносим 10 урона
+                        closestTurret.Health -= 10f; 
+                    }
+                    else if (closestPlayer != null && closestPlayer.gameObject != null)
+                    {
+                        var targetHealth = closestPlayer.GetComponent<Health>();
+                        if (targetHealth != null && targetHealth.HasStateAuthority)
+                        {
+                            targetHealth.TakeDamage(10f); 
+                        }
                     }
                     
-                    // Приказываем движку уничтожить этого врага
-                    ecb.DestroyEntity(entity);
+                    ecb.DestroyEntity(entity); 
                 }
-                // 3. ДВИЖЕНИЕ
                 else
                 {
                     direction = math.normalize(direction);
@@ -73,7 +108,7 @@ namespace _Project.Scripts.ECS.Systems
                 }
             }
 
-            ecb.Playback(state.EntityManager);
+            ecb.Playback(EntityManager);
             ecb.Dispose();
         }
     }

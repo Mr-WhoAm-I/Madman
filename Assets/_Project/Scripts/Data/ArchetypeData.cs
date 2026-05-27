@@ -1,4 +1,3 @@
-using Fusion;
 using UnityEngine;
 
 namespace _Project.Scripts.Data
@@ -22,11 +21,8 @@ namespace _Project.Scripts.Data
 
         [Header("Стартовое Оружие")]
         public WeaponData defaultWeapon;
-        
-        [Header("Навыки: Установка 'Цербер' (Параноик)")]
-        public NetworkPrefabRef turretPrefab; // Префаб турели для спавна через Fusion
-        public float turretBaseHealth = 500f; // Базовое здоровье (будет расти с уровнем)
-        public float turretTauntDuration = 5f; // Сколько секунд турель агрит врагов
-        public float turretTauntRadius = 10f; // Радиус агра
+
+        [Header("Уникальный Навык")]
+        public SkillData activeSkillData; // Полиморфизм в действии!
     }
 }
