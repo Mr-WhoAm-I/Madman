@@ -12,6 +12,7 @@ namespace _Project.Scripts.Network
     {
         [Networked] public int NetworkArchetypeID { get; set; }
 
+        public static PlayerNetworkBridge LocalPlayer;
         private Entity _playerEntity;
         private EntityManager _entityManager;
         private ChangeDetector _changeDetector;
@@ -20,7 +21,7 @@ namespace _Project.Scripts.Network
         {
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
-
+            
             _playerEntity = _entityManager.CreateEntity(
                 typeof(PlayerTag),
                 typeof(PlayerInputComponent),
@@ -36,11 +37,11 @@ namespace _Project.Scripts.Network
             // 1. Если это НАШ локальный игрок
             if (HasInputAuthority)
             {
-                // Подписываемся на смену одежды в гардеробе
+                LocalPlayer = this;
                 ProfileController.Instance.OnArchetypeChanged += HandleLocalArchetypeChanged;
                 
                 // Отправляем текущий сохраненный профиль
-                int mySavedArchetypeID = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
+                var mySavedArchetypeID = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
                 HandleLocalArchetypeChanged(mySavedArchetypeID);
             }
 
@@ -93,6 +94,20 @@ namespace _Project.Scripts.Network
             inputComponent.Buttons = data.Buttons; // Пробрасываем кнопки
                     
             _entityManager.SetComponentData(_playerEntity, inputComponent);
+            
+            if (_entityManager.HasComponent<Trigger360ShootTag>(_playerEntity))
+            {
+                if (HasStateAuthority)
+                {
+                    var weapon = GetComponent<PlayerWeapon>();
+                    if (weapon != null)
+                    {
+                        weapon.ShootTornado360();
+                    }
+                }
+                // Удаляем тег и на сервере, и на клиенте (чтобы не стрелять вечно)
+                _entityManager.RemoveComponent<Trigger360ShootTag>(_playerEntity);
+            }
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
