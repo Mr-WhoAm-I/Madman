@@ -18,7 +18,7 @@ namespace _Project.Scripts.ECS.Systems
             // Создаем буфер команд для структурных изменений (добавление компонентов)
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-            foreach (var (input, skillState, entity) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>>().WithEntityAccess())
+            foreach (var (input, skillState, entity) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>>().WithAll<HystericTag>().WithEntityAccess())
             {
                 var buttons = input.ValueRO.Buttons; // Копируем состояние кнопок в локальную переменную
                 var prevButtons = input.ValueRO.PreviousButtons;

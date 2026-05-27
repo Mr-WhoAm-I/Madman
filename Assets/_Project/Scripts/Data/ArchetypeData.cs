@@ -1,3 +1,4 @@
+using Fusion;
 using UnityEngine;
 
 namespace _Project.Scripts.Data
@@ -21,6 +22,11 @@ namespace _Project.Scripts.Data
 
         [Header("Стартовое Оружие")]
         public WeaponData defaultWeapon;
-        // Примечание: Позже мы добавим сюда ссылки на уникальные навыки (например, префаб турели или шипов)
+        
+        [Header("Навыки: Установка 'Цербер' (Параноик)")]
+        public NetworkPrefabRef turretPrefab; // Префаб турели для спавна через Fusion
+        public float turretBaseHealth = 500f; // Базовое здоровье (будет расти с уровнем)
+        public float turretTauntDuration = 5f; // Сколько секунд турель агрит врагов
+        public float turretTauntRadius = 10f; // Радиус агра
     }
 }

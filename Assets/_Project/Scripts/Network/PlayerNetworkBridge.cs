@@ -22,19 +22,32 @@ namespace _Project.Scripts.Network
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
             
+            // 1. ДОБАВЛЯЕМ typeof(SkillStateComponent) В СПИСОК
             _playerEntity = _entityManager.CreateEntity(
                 typeof(PlayerTag),
                 typeof(PlayerInputComponent),
                 typeof(PlayerMovementComponent),
                 typeof(LocalTransform),
-                typeof(PlayerTransformSync) 
+                typeof(PlayerTransformSync),
+                typeof(SkillStateComponent) // <--- ВОТ СЮДА
             );
 
             _entityManager.SetComponentData(_playerEntity, new PlayerMovementComponent { MoveSpeed = 5f });
             _entityManager.SetComponentData(_playerEntity, LocalTransform.FromPosition(transform.position));
             _entityManager.SetComponentData(_playerEntity, new PlayerTransformSync { Value = transform });
+            
+            // 2. ИНИЦИАЛИЗИРУЕМ ЗНАЧЕНИЯ (перенесли логику из PlayerAuthoring)
+            _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
+            { 
+                MaxCooldown = 5f, 
+                CurrentCooldown = 0f, 
+                MaxCharges = 1, 
+                CurrentCharges = 1 // Со старта игры скилл готов к использованию
+            });
 
-            // 1. Если это НАШ локальный игрок
+            _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
+            
+            // Если это НАШ локальный игрок
             if (HasInputAuthority)
             {
                 LocalPlayer = this;
@@ -45,8 +58,7 @@ namespace _Project.Scripts.Network
                 HandleLocalArchetypeChanged(mySavedArchetypeID);
             }
 
-            // 2. ПРИНУДИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ (Решает проблему скорости "0" при старте)
-            // Применяем статы сразу при спавне, так как ChangeDetector может не поймать начальное значение
+            // ПРИНУДИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ
             ApplyArchetypeStatsToECS();
         }
 
@@ -122,7 +134,7 @@ namespace _Project.Scripts.Network
             
             if (archetypeData == null) 
             {
-                Debug.LogWarning($"[NetworkBridge] Ассет архетипа с ID {NetworkArchetypeID} не найден! Проверь массив в ProfileController.");
+                Debug.LogWarning($"[NetworkBridge] Ассет архетипа с ID {NetworkArchetypeID} не найден!");
                 return;
             }
 
@@ -130,7 +142,54 @@ namespace _Project.Scripts.Network
             movementComp.MoveSpeed = archetypeData.moveSpeed; 
             _entityManager.SetComponentData(_playerEntity, movementComp);
             
+            UpdateArchetypeTag(NetworkArchetypeID);
+
             Debug.Log($"[NetworkBridge] Применены статы архетипа {archetypeData.archetypeName}. Скорость: {movementComp.MoveSpeed}");
+        }
+
+        // Логика конечного автомата (State Machine) на тегах
+        private void UpdateArchetypeTag(int archetypeID)
+        {
+            if (!_entityManager.HasComponent<ArchetypeComponent>(_playerEntity))
+                _entityManager.AddComponent<ArchetypeComponent>(_playerEntity);
+            _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
+            
+            // 1. Очищаем старые теги, чтобы избежать наслоения классов
+            _entityManager.RemoveComponent<HystericTag>(_playerEntity);
+            _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
+            _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
+            _entityManager.RemoveComponent<SchizoidTag>(_playerEntity);
+
+            // 2. Вешаем актуальный тег.
+            // ВАЖНО: Проверь, какие именно ID (0, 1, 2, 3) соответствуют твоим классам 
+            // в массиве ProfileController, и подставь правильные значения!
+            switch (archetypeID)
+            {
+                case 0: // Предположим, 0 - это Истерик
+                    _entityManager.AddComponent<HystericTag>(_playerEntity);
+                    break;
+                case 1: // Предположим, 1 - это Параноик
+                    _entityManager.AddComponent<ParanoiacTag>(_playerEntity);
+                    
+                    // Пример: Параноик может иметь другие базовые настройки кулдауна
+                    _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
+                    { 
+                        MaxCooldown = 8f, // Турель откатывается дольше
+                        CurrentCooldown = 0f, 
+                        MaxCharges = 1, 
+                        CurrentCharges = 1 
+                    });
+                    break;
+                case 2:  // Шизоид
+                    _entityManager.AddComponent<SchizoidTag>(_playerEntity);
+                    break;
+                case 3: // Меланхолик
+                    _entityManager.AddComponent<MelancholicTag>(_playerEntity);
+                    break;
+                default:
+                    Debug.LogWarning($"[NetworkBridge] Неизвестный ID архетипа: {archetypeID}");
+                    break;
+            }
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)

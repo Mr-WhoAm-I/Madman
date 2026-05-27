@@ -195,29 +195,41 @@ namespace _Project.Scripts.Network
 
             inputData.MovementInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
 
-            // 2. Направление прицеливания (Aim)
+            // Базовое направление (мышь ПК или правый стик прицеливания)
+            Vector2 baseAimDirection = Vector2.up;
             var aimValue = _playerControls.Gameplay.Aim.ReadValue<Vector2>();
             
-            // Если игрок на ПК (играет мышкой) - aimValue это координаты экрана. 
             if (aimValue.magnitude > 1f && Camera.main != null) 
             {
-                // Получаем позицию курсора в мире
                 var worldMousePos = Camera.main.ScreenToWorldPoint(new Vector3(aimValue.x, aimValue.y, -Camera.main.transform.position.z));
-                
                 var screenCenter = new Vector3(Screen.width / 2f, Screen.height / 2f, 0);
                 var worldCenter = Camera.main.ScreenToWorldPoint(new Vector3(screenCenter.x, screenCenter.y, -Camera.main.transform.position.z));
+                baseAimDirection = (new Vector2(worldMousePos.x, worldMousePos.y) - new Vector2(worldCenter.x, worldCenter.y)).normalized;
+            }
+            else if (aimValue.magnitude > 0.1f)
+            {
+                baseAimDirection = aimValue.normalized;
+            }
+
+            // --- КРОССПЛАТФОРМЕННАЯ ЛОГИКА НАВЫКА ---
+            bool isSkillFired = false;
+
+            // 1. Проверяем мобильный MOBA-джойстик (присутствует ли он и был ли отпущен палец)
+            if (MobaSkillJoystick.Instance != null && MobaSkillJoystick.Instance.ConsumeFireEvent(out Vector2 joystickAim))
+            {
+                isSkillFired = true;
                 
-                var direction = (new Vector2(worldMousePos.x, worldMousePos.y) - new Vector2(worldCenter.x, worldCenter.y)).normalized;
-                inputData.AimDirection = direction;
+                // Если автонаведение никого не нашло (вернуло 0,0), стреляем в сторону базового прицела/движения
+                inputData.AimDirection = joystickAim != Vector2.zero ? joystickAim : baseAimDirection;
             }
             else
             {
-                // Если игрок на мобилке (джойстик) - aimValue это уже готовое направление от -1 до 1
-                inputData.AimDirection = aimValue.normalized;
+                // 2. Классический ПК-инпут: кнопка нажата СЕЙЧАС
+                isSkillFired = _playerControls.Gameplay.Skill.IsPressed();
+                inputData.AimDirection = baseAimDirection; // Целимся туда, куда смотрит мышь
             }
 
-            var isSkillPressed = _playerControls.Gameplay.Skill.IsPressed();
-            inputData.Buttons.Set(PlayerInputButtons.Skill, isSkillPressed);
+            inputData.Buttons.Set(PlayerInputButtons.Skill, isSkillFired);
 
             input.Set(inputData);
         }
