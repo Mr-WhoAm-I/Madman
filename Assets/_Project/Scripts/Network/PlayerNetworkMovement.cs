@@ -1,35 +1,71 @@
 using Fusion;
 using UnityEngine;
+using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.Network
 {
-    // Наследуемся от NetworkBehaviour, чтобы иметь доступ к магии Photon
     public class PlayerNetworkMovement : NetworkBehaviour
     {
+        [Header("Базовое передвижение")]
         public float speed = 5f;
+        
         public static Vector3 LocalPlayerPosition;
         public static Health LocalPlayerHealth;
 
+        private PlayerNetworkBridge _bridge;
+
         public override void Spawned()
         {
-            // При спавне находим здоровье и сохраняем в статичную переменную,
-            // если этот куб принадлежит нам (или мы Сервер)
             if (HasInputAuthority || HasStateAuthority)
             {
                 LocalPlayerHealth = GetComponent<Health>();
             }
+            
+            // Кешируем ссылку на мост, чтобы читать ECS
+            _bridge = GetComponent<PlayerNetworkBridge>();
         }
-        // FixedUpdateNetwork - это сетевой аналог Update(). Он синхронизирован у всех игроков.
+
         public override void FixedUpdateNetwork()
         {
             if (GetComponent<Health>().IsDead) return;
-            // Спрашиваем: "Есть ли ввод от игрока, которому принадлежит этот куб?"
+
+            // 1. Проверяем, есть ли мост и жива ли сущность в ECS
+            if (_bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity))
+            {
+                // 2. СПРАШИВАЕМ ECS: Мы сейчас в состоянии рывка?
+                if (_bridge.EntityManager.HasComponent<DashComponent>(_bridge.PlayerEntity))
+                {
+                    // Читаем параметры рывка, которые задала HystericSkillSystem
+                    var dash = _bridge.EntityManager.GetComponentData<DashComponent>(_bridge.PlayerEntity);
+                    
+                    // Летим!
+                    var dashMove = new Vector3(dash.Direction.x, dash.Direction.y, 0f);
+                    transform.position += dashMove * dash.Speed * Runner.DeltaTime;
+                    
+                    // Обновляем локальную позицию и ВЫХОДИМ ИЗ МЕТОДА, чтобы обычный бег не перебил рывок
+                    UpdateLocalPosition();
+                    return; 
+                }
+            }
+
+            // 3. ОБЫЧНОЕ ДВИЖЕНИЕ (если рывка нет)
             if (GetInput(out NetworkInputData data))
             {
                 var moveDirection = new Vector3(data.MovementInput.x, data.MovementInput.y, 0f);
                 transform.position += moveDirection * speed * Runner.DeltaTime;
             }
             
+            UpdateLocalPosition();
+            
+            if (_bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity))
+            {
+                _bridge.EntityManager.SetComponentData(_bridge.PlayerEntity, 
+                    Unity.Transforms.LocalTransform.FromPosition(transform.position));
+            }
+        }
+
+        private void UpdateLocalPosition()
+        {
             if (HasInputAuthority || HasStateAuthority)
             {
                 LocalPlayerPosition = transform.position;

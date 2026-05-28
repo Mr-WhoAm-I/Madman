@@ -1,51 +1,65 @@
-using Unity.Burst;
-using Unity.Collections;
 using Unity.Entities;
-using UnityEngine;
+using Unity.Collections;
+using Unity.Mathematics;
 using _Project.Scripts.ECS.Components;
-using _Project.Scripts.Network; 
 
 namespace _Project.Scripts.ECS.Systems
 {
     [UpdateInGroup(typeof(FusionUpdateGroup))]
-    [UpdateBefore(typeof(PlayerMovementSystem))] 
-    [BurstCompile]
+    [UpdateAfter(typeof(SkillInputSystem))]
     public partial struct HystericSkillSystem : ISystem
     {
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // Создаем буфер команд для структурных изменений (добавление компонентов)
+            // ИСПРАВЛЕНИЕ: Читаем монолитный сетевой дельта-тайм вместо кадрового рендеринга!
+            if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
+                return;
+
+            float deltaTime = timeComponent.DeltaTime;
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-            foreach (var (input, skillState, entity) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>>().WithAll<HystericTag>().WithEntityAccess())
+            foreach (var (skillState, request, config, input, bridgeRef, entity) in 
+                     SystemAPI.Query<RefRW<SkillStateComponent>, RefRO<ExecuteSkillRequest>, RefRO<SkillConfigComponent>, RefRO<PlayerInputComponent>, PlayerBridgeReference>()
+                     .WithAll<HystericTag>()
+                     .WithEntityAccess())
             {
-                var buttons = input.ValueRO.Buttons; // Копируем состояние кнопок в локальную переменную
-                var prevButtons = input.ValueRO.PreviousButtons;
-                
-                const int skillIndex = (int)PlayerInputButtons.Skill;
-
-                var wasPressed = buttons.IsSet(skillIndex) && !prevButtons.IsSet(skillIndex);
-
-                if (!wasPressed || skillState.ValueRO.CurrentCharges <= 0) continue;
+                // ИСПРАВЛЕНИЕ: Убрали IsForward блокировку симуляции
                 skillState.ValueRW.CurrentCharges--;
-                if (skillState.ValueRO.CurrentCooldown <= 0f)
+                
+                if (skillState.ValueRW.CurrentCooldown <= 0f)
+                {
                     skillState.ValueRW.CurrentCooldown = skillState.ValueRO.MaxCooldown;
+                }
 
-                var dashDir = input.ValueRO.AimDirection == Vector2.zero ? new Vector2(1, 0) : input.ValueRO.AimDirection.normalized;
+                float2 dashDir = request.ValueRO.AimDirection;
+                
+                if (math.lengthsq(dashDir) < 0.01f) dashDir = input.ValueRO.MovementInput;
+                if (math.lengthsq(dashDir) < 0.01f) dashDir = new float2(1, 0); 
+                
+                dashDir = math.normalize(dashDir);
 
-                // Добавляем компоненты через буфер
-                ecb.AddComponent(entity, new DashComponent 
-                { 
-                    Timer = 0.25f, 
-                    Speed = 25f,   
-                    Direction = dashDir
+                ecb.AddComponent(entity, new Trigger360ShootTag());
+                
+                ecb.AddComponent(entity, new DashComponent
+                {
+                    Direction = dashDir,
+                    Speed = config.ValueRO.DashSpeed,
+                    TimeLeft = config.ValueRO.DashDuration
                 });
 
-                ecb.AddComponent<Trigger360ShootTag>(entity);
+                ecb.RemoveComponent<ExecuteSkillRequest>(entity);
             }
-            
-            // Выполняем все накопленные команды разом
+
+            foreach (var (dash, bridgeRef, entity) in SystemAPI.Query<RefRW<DashComponent>, PlayerBridgeReference>().WithEntityAccess())
+            {
+                // ИСПРАВЛЕНИЕ: Таймер уменьшается на фиксированный сетевой deltaTime на каждом тике симуляции!
+                dash.ValueRW.TimeLeft -= deltaTime;
+                if (dash.ValueRO.TimeLeft <= 0f)
+                {
+                    ecb.RemoveComponent<DashComponent>(entity);
+                }
+            }
+
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }

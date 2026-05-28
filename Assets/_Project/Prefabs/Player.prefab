@@ -19,6 +19,7 @@ GameObject:
   - component: {fileID: -7128601996319023254}
   - component: {fileID: 4625988951050694400}
   - component: {fileID: 1910614221998937192}
+  - component: {fileID: 5536256928014762380}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -123,6 +124,7 @@ MonoBehaviour:
   - {fileID: -8435589918823312608}
   - {fileID: -179104619915421629}
   - {fileID: 1910614221998937192}
+  - {fileID: 5536256928014762380}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &9085167907810570153
 MonoBehaviour:
@@ -136,7 +138,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8122ccf9102a4fe59ecee42d6e5a84b9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerNetworkBridge
-  moveSpeed: 5
+  _NetworkArchetypeID: 0
+  _NetworkCurrentCooldown: 0
+  _NetworkMaxCooldown: 0
+  _NetworkCurrentCharges: 0
+  _NetworkMaxCharges: 0
 --- !u!114 &55891212620523115
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -288,3 +294,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dcef3caa94484b54b3c4c7ef98357dcc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.LocalCameraSetup
+--- !u!114 &5536256928014762380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6598462556209755569}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91b670fa48bd40479613ac1521bed046, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerNetworkMovement
+  speed: 5

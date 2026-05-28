@@ -19,7 +19,7 @@ namespace _Project.Scripts.UI
         
         private Vector2 _startPosition;
         private Vector2 _currentAimDirection;
-        private bool _isFiredThisTick;
+        private int _fireLatchCount; // ИСПРАВЛЕНО: Заменили нестабильный bool на счетчик тиков защелки (Input Latching)
         private bool _isDragging;
 
         private void Awake()
@@ -84,7 +84,10 @@ namespace _Project.Scripts.UI
                 _currentAimDirection = _currentAimDirection.normalized;
             }
 
-            _isFiredThisTick = true;
+            // ИСПРАВЛЕНО: Вместо разового импульса взводим защелку на 3 сетевых опроса Fusion.
+            // Это гарантирует избыточность (redundancy) против потери UDP-пакетов в мобильной сети
+            // и полностью нейтрализует рассинхрон фреймрейта (120 FPS экрана против фиксированной сети).
+            _fireLatchCount = 3;
         }
 
         private Vector2 TryFindAutoAimTarget()
@@ -115,13 +118,15 @@ namespace _Project.Scripts.UI
             return closestDir; // Вернет (0,0), если врагов нет
         }
 
-        // Вызывается из NetworkManager каждый сетевой тик
+        // Вызывается из NetworkManager каждый сетевой тик опроса инпута
         public bool ConsumeFireEvent(out Vector2 aimDir)
         {
             aimDir = _currentAimDirection;
-            if (_isFiredThisTick)
+            
+            // ИСПРАВЛЕНО: Пока счетчик защелки активен, удерживаем состояние нажатия навыка во Fusion пакетах
+            if (_fireLatchCount > 0)
             {
-                _isFiredThisTick = false;
+                _fireLatchCount--;
                 return true;
             }
             return false;

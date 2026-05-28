@@ -17,7 +17,7 @@ namespace _Project.Scripts.ECS.Systems
             if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.HasStateAuthority)
                 return;
 
-            float deltaTime = SystemAPI.Time.DeltaTime;
+            var deltaTime = EnemySwarmManager.Instance.Runner.DeltaTime;
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             // Кэшируем Query всех целей для максимальной скорости

@@ -5,6 +5,7 @@ using Unity.Transforms;
 using Unity.Mathematics;
 using _Project.Scripts.ECS.Components;
 using _Project.Scripts.Data;
+using _Project.Scripts.Core; // ДОБАВЛЕНО: нужно для ProfileController
 using Allocator = Unity.Collections.Allocator;
 
 namespace _Project.Scripts.Network
@@ -33,7 +34,6 @@ namespace _Project.Scripts.Network
             ValidateWeapons();
         }
 
-        // Этот метод гарантирует, что Параноик не возьмет два пистолета
         public void ValidateWeapons()
         {
             if (_playerManager == null || _playerManager.currentArchetype == null) return;
@@ -44,13 +44,11 @@ namespace _Project.Scripts.Network
             for (var i = 0; i < equippedWeapons.Length; i++)
             {
                 if (equippedWeapons[i] == null) continue;
-                // 1. Проверка на количество доступных слотов
                 if (i >= allowedSlots)
                 {
                     Debug.LogWarning($"[Сервер] Слот {i + 1} заблокирован для класса {_playerManager.currentArchetype.archetypeName}. Оружие изъято.");
                     equippedWeapons[i] = null;
                 }
-                // 2. Проверка на соответствие категории
                 else if (equippedWeapons[i].category != allowedCategory)
                 {
                     Debug.LogWarning($"[Сервер] Класс {_playerManager.currentArchetype.archetypeName} не может использовать категорию {equippedWeapons[i].category}. Оружие изъято.");
@@ -62,6 +60,35 @@ namespace _Project.Scripts.Network
         public override void FixedUpdateNetwork()
         {
             if (GetComponent<Health>().IsDead) return;
+
+            // --- НОВАЯ ЛОГИКА АКТИВНЫХ НАВЫКОВ (ИЗОЛИРОВАННАЯ ИЗ МОСТА) ---
+            var bridge = GetComponent<PlayerNetworkBridge>();
+            if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
+            {
+                // Оружие само проверяет, не появилась ли в ECS команда на выстрел 360
+                if (bridge.EntityManager.HasComponent<Trigger360ShootTag>(bridge.PlayerEntity))
+                {
+                    // Спавн пуль происходит только на сервере (чтобы не было двойных пуль у клиентов)
+                    if (HasStateAuthority)
+                    {
+                        int bulletsToShoot = 8; // Значение по умолчанию
+                        
+                        // Достаем актуальный архетип
+                        var archetypeData = ProfileController.Instance.GetArchetypeAsset(bridge.NetworkArchetypeID);
+                        if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
+                        {
+                            bulletsToShoot = hystericSkill.bulletCount; // Берем из ScriptableObject!
+                        }
+                        
+                        ShootTornado360(bulletsToShoot);
+                    }
+                    
+                    // ВАЖНО: Удаляем тег у ВСЕХ (и на сервере, и на клиентах), чтобы клиент тоже очистил свой ECS
+                    bridge.EntityManager.RemoveComponent<Trigger360ShootTag>(bridge.PlayerEntity);
+                }
+            }
+            // -------------------------------------------------------------
+
             if (!HasStateAuthority) return;
 
             // Логика стрельбы из первого слота (Левая рука)
@@ -78,7 +105,6 @@ namespace _Project.Scripts.Network
             Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate);
         }
 
-        // Обнови сигнатуру метода, добавив int slotIndex
         private void FireWeapon(WeaponData weapon, int slotIndex) 
         {
             var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
@@ -89,7 +115,6 @@ namespace _Project.Scripts.Network
                 return; 
             }
 
-            // Ищем ближайшего врага
             var playerPos = new float3(transform.position.x, transform.position.y, 0f);
             var nearestDistSq = float.MaxValue;
             var nearestEnemyPos = float3.zero;
@@ -103,27 +128,19 @@ namespace _Project.Scripts.Network
             }
             enemyTransforms.Dispose();
 
-            // Вычисляем базовое направление и угол
             var direction = ((Vector3)nearestEnemyPos - transform.position).normalized;
             var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
             var baseRotation = Quaternion.Euler(0, 0, angle);
 
-            // --- МАГИЯ ДЛЯ ИСТЕРИКА (Разделяем руки) ---
-            // Находим вектор "вправо" относительно направления стрельбы (математика 2D)
             var rightDirection = Vector3.Cross(direction, Vector3.forward);
-            
-            // Если слот 0 - смещаем влево на 0.3f. Если слот 1 - смещаем вправо на 0.3f
             var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
             var finalSpawnPos = transform.position + spawnOffset;
-            // -------------------------------------------
 
-            // Стрельба
             for (var p = 0; p < weapon.pelletCount; p++)
             {
                 var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
                 var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
-                // Используем нашу новую позицию finalSpawnPos вместо transform.position
                 Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) =>
                 {
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
@@ -137,11 +154,9 @@ namespace _Project.Scripts.Network
 
         public void ShootTornado360(int bulletCount)
         {
-            // Проверяем, есть ли вообще оружие в руках
             if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return;
             var weapon = equippedWeapons[0];
             
-            // Вычисляем угол между пулями
             float angleStep = 360f / bulletCount;
             
             for (int i = 0; i < bulletCount; i++)
@@ -153,7 +168,6 @@ namespace _Project.Scripts.Network
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
                     if (bulletMovement != null)
                     {
-                        // Передаем характеристики экипированного оружия
                         bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed);
                     }
                 });
