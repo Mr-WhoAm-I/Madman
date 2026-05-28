@@ -5,7 +5,7 @@ using Unity.Transforms;
 using Unity.Mathematics;
 using _Project.Scripts.ECS.Components;
 using _Project.Scripts.Data;
-using _Project.Scripts.Core; // ДОБАВЛЕНО: нужно для ProfileController
+using _Project.Scripts.Core; 
 using Allocator = Unity.Collections.Allocator;
 
 namespace _Project.Scripts.Network
@@ -13,162 +13,214 @@ namespace _Project.Scripts.Network
     public class PlayerWeapon : NetworkBehaviour
     {
         [Header("Экипированное оружие")]
-        // Массив слотов (максимум 2 по нашему GDD для Истерика)
-        public WeaponData[] equippedWeapons = new WeaponData[2];
+        public WeaponData[] equippedWeapons = new WeaponData[2]; //
 
-        // Сетевые таймеры для каждого слота
-        [Networked] private TickTimer Timer0 { get; set; }
-        [Networked] private TickTimer Timer1 { get; set; }
+        [Networked] private TickTimer Timer0 { get; set; } //[cite: 7]
+        [Networked] private TickTimer Timer1 { get; set; } //[cite: 7]
         
         private EntityQuery _enemyQuery;
         private PlayerManager _playerManager;
+        private bool _isClone; // Флаг: является ли этот объект клоном Шизоида
 
         public override void Spawned()
         {
-            _playerManager = GetComponent<PlayerManager>();
+            _playerManager = GetComponent<PlayerManager>(); //[cite: 7]
 
-            if (!HasStateAuthority) return;
-            _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform));
+            if (!HasStateAuthority) return; //[cite: 7]
+            _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform)); //[cite: 7]
                 
-            // Важнейший шаг: проверяем оружие по правилам архетипа
-            ValidateWeapons();
+            // Проверяем, кто мы — игрок или клон
+            _isClone = GetComponent<CloneNetworkBridge>() != null;
+
+            ValidateWeapons(); //[cite: 7]
         }
 
         public void ValidateWeapons()
         {
-            if (_playerManager == null || _playerManager.currentArchetype == null) return;
+            if (_playerManager == null || _playerManager.currentArchetype == null) return; //[cite: 7]
 
-            var allowedSlots = _playerManager.currentArchetype.weaponSlotsCount;
-            var allowedCategory = _playerManager.currentArchetype.allowedWeaponCategory;
+            var allowedSlots = _playerManager.currentArchetype.weaponSlotsCount; //[cite: 7]
+            var allowedCategory = _playerManager.currentArchetype.allowedWeaponCategory; //[cite: 7]
 
-            for (var i = 0; i < equippedWeapons.Length; i++)
+            for (var i = 0; i < equippedWeapons.Length; i++) //[cite: 7]
             {
-                if (equippedWeapons[i] == null) continue;
-                if (i >= allowedSlots)
+                if (equippedWeapons[i] == null) continue; //[cite: 7]
+                if (i >= allowedSlots) //[cite: 7]
                 {
-                    Debug.LogWarning($"[Сервер] Слот {i + 1} заблокирован для класса {_playerManager.currentArchetype.archetypeName}. Оружие изъято.");
-                    equippedWeapons[i] = null;
+                    Debug.LogWarning($"[Сервер] Слот {i + 1} заблокирован. Оружие изъято."); //[cite: 7]
+                    equippedWeapons[i] = null; //[cite: 7]
                 }
-                else if (equippedWeapons[i].category != allowedCategory)
+                else if (equippedWeapons[i].category != allowedCategory) //[cite: 7]
                 {
-                    Debug.LogWarning($"[Сервер] Класс {_playerManager.currentArchetype.archetypeName} не может использовать категорию {equippedWeapons[i].category}. Оружие изъято.");
-                    equippedWeapons[i] = null;
+                    Debug.LogWarning($"[Сервер] Оружие изъято из-за несоответствия категории."); //[cite: 7]
+                    equippedWeapons[i] = null; //[cite: 7]
                 }
             }
         }
 
         public override void FixedUpdateNetwork()
         {
-            if (GetComponent<Health>().IsDead) return;
+            if (GetComponent<Health>().IsDead) return; //[cite: 7]
 
-            // --- НОВАЯ ЛОГИКА АКТИВНЫХ НАВЫКОВ (ИЗОЛИРОВАННАЯ ИЗ МОСТА) ---
-            var bridge = GetComponent<PlayerNetworkBridge>();
-            if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
+            // Клон не обрабатывает ECS-ульты Истерика и не блокирует сам себя в инвизе
+            if (!_isClone)
             {
-                // Оружие само проверяет, не появилась ли в ECS команда на выстрел 360
-                if (bridge.EntityManager.HasComponent<Trigger360ShootTag>(bridge.PlayerEntity))
+                var bridge = GetComponent<PlayerNetworkBridge>();
+                if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
                 {
-                    // Спавн пуль происходит только на сервере (чтобы не было двойных пуль у клиентов)
-                    if (HasStateAuthority)
+                    var em = bridge.EntityManager;
+                    var playerE = bridge.PlayerEntity;
+
+                    // БЛОКИРОВКА АВТОАТАКИ В ИНВИЗЕ ДЛЯ НАСТОЯЩЕГО ИГРОКА
+                    if (em.HasComponent<InvisibilityStateComponent>(playerE))
                     {
-                        int bulletsToShoot = 8; // Значение по умолчанию
-                        
-                        // Достаем актуальный архетип
-                        var archetypeData = ProfileController.Instance.GetArchetypeAsset(bridge.NetworkArchetypeID);
-                        if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
-                        {
-                            bulletsToShoot = hystericSkill.bulletCount; // Берем из ScriptableObject!
-                        }
-                        
-                        ShootTornado360(bulletsToShoot);
+                        return; 
                     }
-                    
-                    // ВАЖНО: Удаляем тег у ВСЕХ (и на сервере, и на клиентах), чтобы клиент тоже очистил свой ECS
-                    bridge.EntityManager.RemoveComponent<Trigger360ShootTag>(bridge.PlayerEntity);
+
+                    // Логика ульты Истерика (Ураган 360)
+                    if (em.HasComponent<Trigger360ShootTag>(playerE))
+                    {
+                        if (HasStateAuthority)
+                        {
+                            int bulletsToShoot = 8; 
+                            var archetypeData = ProfileController.Instance.GetArchetypeAsset(bridge.NetworkArchetypeID);
+                            if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
+                            {
+                                bulletsToShoot = hystericSkill.bulletCount; 
+                            }
+                            
+                            ShootTornado360(bulletsToShoot);
+                        }
+                        em.RemoveComponent<Trigger360ShootTag>(playerE);
+                    }
                 }
             }
-            // -------------------------------------------------------------
 
-            if (!HasStateAuthority) return;
+            if (!HasStateAuthority) return; //[cite: 7]
 
-            // Логика стрельбы из первого слота (Левая рука)
-            if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner))
+            // ЕДИНЫЙ ЦИКЛ СТРЕЛЬБЫ (Работает и для игрока, и для полноценного оружия клона)
+            if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner)) //[cite: 7]
             {
-                FireWeapon(equippedWeapons[0], 0); // Передаем индекс 0
-                Timer0 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[0].fireRate);
+                FireWeapon(equippedWeapons[0], 0); //[cite: 7]
+                Timer0 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[0].fireRate); //[cite: 7]
             }
 
-            // Логика стрельбы из второго слота (Правая рука)
-            if (equippedWeapons.Length <= 1 || equippedWeapons[1] == null ||
-                !Timer1.ExpiredOrNotRunning(Runner)) return;
-            FireWeapon(equippedWeapons[1], 1); // Передаем индекс 1
-            Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate);
+            if (equippedWeapons.Length <= 1 || equippedWeapons[1] == null || !Timer1.ExpiredOrNotRunning(Runner)) return; //[cite: 7]
+            
+            FireWeapon(equippedWeapons[1], 1); //[cite: 7]
+            Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate); //[cite: 7]
         }
 
-        private void FireWeapon(WeaponData weapon, int slotIndex) 
+        private void FireWeapon(WeaponData weapon, int slotIndex) //[cite: 7]
         {
-            var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+            var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp); //[cite: 7]
             
-            if (enemyTransforms.Length == 0)
+            if (enemyTransforms.Length == 0) //[cite: 7]
             {
-                enemyTransforms.Dispose();
+                enemyTransforms.Dispose(); //[cite: 7]
                 return; 
             }
 
-            var playerPos = new float3(transform.position.x, transform.position.y, 0f);
+            var shooterPos = new float3(transform.position.x, transform.position.y, 0f);
             var nearestDistSq = float.MaxValue;
             var nearestEnemyPos = float3.zero;
 
-            for (var i = 0; i < enemyTransforms.Length; i++)
+            for (var i = 0; i < enemyTransforms.Length; i++) //[cite: 7]
             {
-                var distSq = math.distancesq(playerPos, enemyTransforms[i].Position);
-                if (!(distSq < nearestDistSq)) continue;
-                nearestDistSq = distSq;
-                nearestEnemyPos = enemyTransforms[i].Position;
+                var distSq = math.distancesq(shooterPos, enemyTransforms[i].Position); //[cite: 7]
+                if (!(distSq < nearestDistSq)) continue; //[cite: 7]
+                nearestDistSq = distSq; //[cite: 7]
+                nearestEnemyPos = enemyTransforms[i].Position; //[cite: 7]
             }
-            enemyTransforms.Dispose();
+            enemyTransforms.Dispose(); //[cite: 7]
 
-            var direction = ((Vector3)nearestEnemyPos - transform.position).normalized;
-            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
-            var baseRotation = Quaternion.Euler(0, 0, angle);
+            var direction = ((Vector3)nearestEnemyPos - transform.position).normalized; //[cite: 7]
+            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f; //[cite: 7]
+            var baseRotation = Quaternion.Euler(0, 0, angle); //[cite: 7]
 
-            var rightDirection = Vector3.Cross(direction, Vector3.forward);
-            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
-            var finalSpawnPos = transform.position + spawnOffset;
+            var rightDirection = Vector3.Cross(direction, Vector3.forward); //[cite: 7]
+            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f); //[cite: 7]
+            var finalSpawnPos = transform.position + spawnOffset; //[cite: 7]
 
-            for (var p = 0; p < weapon.pelletCount; p++)
+            // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
+            float calculatedDamage = weapon.damage;
+
+            if (_isClone)
             {
-                var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
-                var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
-
-                Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) =>
+                // ИСПРАВЛЕНО: Сначала проверяем наличие архетипа, затем безопасно приводим его activeSkillData к типу Шизоида
+                if (_playerManager != null && _playerManager.currentArchetype != null)
                 {
-                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
-                    if (bulletMovement != null)
+                    var schizoidSkill = _playerManager.currentArchetype.activeSkillData as SchizoidSkillData;
+                    if (schizoidSkill != null)
                     {
-                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed);
+                        calculatedDamage = weapon.damage * schizoidSkill.cloneDamagePercentage;
+                    }
+                }
+            }
+            else
+            {
+                // ЛОГИКА НАСТОЯЩЕГО ИГРОКА: применяем стаки Квантовой нестабильности
+                var bridge = GetComponent<PlayerNetworkBridge>();
+                if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
+                {
+                    var em = bridge.EntityManager;
+                    var playerE = bridge.PlayerEntity;
+
+                    if (em.HasComponent<QuantumInstabilityComponent>(playerE) && em.HasComponent<SkillConfigComponent>(playerE))
+                    {
+                        var instability = em.GetComponentData<QuantumInstabilityComponent>(playerE);
+                        var config = em.GetComponentData<SkillConfigComponent>(playerE);
+
+                        if (instability.CurrentStacks > 0)
+                        {
+                            float multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
+                            calculatedDamage *= multiplier;
+
+                            Debug.Log($"<color=#00FFCC>[КВАНТОВАЯ НЕСТАБИЛЬНОСТЬ]</color> Игрок выстрелил! Стаки: {instability.CurrentStacks}. Урон: {weapon.damage} -> {calculatedDamage}");
+
+                            instability.CurrentStacks = 0;
+                            instability.Timer = 0f;
+                            em.SetComponentData(playerE, instability);
+                        }
+                    }
+                }
+            }
+
+            // Спавним столько дробинок/снарядов, сколько прописано в WeaponData полноценного ствола!
+            for (var p = 0; p < weapon.pelletCount; p++) //[cite: 7]
+            {
+                var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle); //[cite: 7]
+                var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread); //[cite: 7]
+
+                Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) => //[cite: 7]
+                {
+                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>(); //[cite: 7]
+                    if (bulletMovement != null) //[cite: 7]
+                    {
+                        // Сюда улетает честно пересчитанный урон (либо уменьшенный для клона, либо увеличенный для игрока)
+                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, calculatedDamage, weapon.bulletSpeed); //[cite: 7]
                     }
                 });
             }
         }
 
-        public void ShootTornado360(int bulletCount)
+        public void ShootTornado360(int bulletCount) //[cite: 7]
         {
-            if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return;
-            var weapon = equippedWeapons[0];
+            if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return; //[cite: 7]
+            var weapon = equippedWeapons[0]; //[cite: 7]
             
-            float angleStep = 360f / bulletCount;
+            float angleStep = 360f / bulletCount; //[cite: 7]
             
-            for (int i = 0; i < bulletCount; i++)
+            for (int i = 0; i < bulletCount; i++) //[cite: 7]
             {
-                Quaternion rotation = Quaternion.Euler(0, 0, i * angleStep);
+                Quaternion rotation = Quaternion.Euler(0, 0, i * angleStep); //[cite: 7]
                 
-                Runner.Spawn(weapon.bulletPrefab, transform.position, rotation, Object.InputAuthority, (runner, obj) =>
+                Runner.Spawn(weapon.bulletPrefab, transform.position, rotation, Object.InputAuthority, (runner, obj) => //[cite: 7]
                 {
-                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
-                    if (bulletMovement != null)
+                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>(); //[cite: 7]
+                    if (bulletMovement != null) //[cite: 7]
                     {
-                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed);
+                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed); //[cite: 7]
                     }
                 });
             }

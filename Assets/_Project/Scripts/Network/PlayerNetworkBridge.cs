@@ -22,7 +22,7 @@ namespace _Project.Scripts.Network
         [Networked] public int NetworkCurrentCharges { get; set; }
         [Networked] public int NetworkMaxCharges { get; set; }
 
-        // --- ПЕРЕМЕННЫЕ ДЛЯ СИНХРОНИЗАЦИИ СОСТОЯНИЯ РЫВКА ---
+        // --- ПЕРЕМЕННЫЕ ДЛЯ СИНХРОНИЗАЦИИ СОСТОЯНИЯ РЫВКА (ИСТЕРИК) ---
         [Networked] public NetworkBool NetworkIsDashing { get; set; }
         [Networked] public Vector2 NetworkDashDirection { get; set; }
         [Networked] public float NetworkDashTimeLeft { get; set; }
@@ -32,6 +32,7 @@ namespace _Project.Scripts.Network
         private Entity _playerEntity;
         private EntityManager _entityManager;
         private ChangeDetector _changeDetector;
+        private SpriteRenderer _spriteRenderer;
 
         public Entity PlayerEntity => _playerEntity;
         public EntityManager EntityManager => _entityManager;
@@ -40,6 +41,7 @@ namespace _Project.Scripts.Network
         {
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
+            _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
             
             _playerEntity = _entityManager.CreateEntity(
                 typeof(PlayerTag),
@@ -55,9 +57,7 @@ namespace _Project.Scripts.Network
             _entityManager.AddComponentData(_playerEntity, new HealthLinkComponent { Value = GetComponent<Health>() });
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
             
-            // ИСПРАВЛЕНИЕ БАГА АГРА: Инициализируем базовый приоритет игрока равным 1.0f.
-            // Теперь, когда таунт Цербера закончится (и упадет до 1.0f), приоритеты сравняются,
-            // и мобы начнут корректно выбирать ближайшую цель!
+            // Инициализируем базовый приоритет игрока равным 1.0f.
             _entityManager.SetComponentData(_playerEntity, new TargetableComponent { Priority = 1.0f });
             
             _entityManager.AddComponentData(_playerEntity, new PlayerBridgeReference { Bridge = this });
@@ -111,6 +111,17 @@ namespace _Project.Scripts.Network
                 _entityManager.SetComponentData(_playerEntity, skillState);
             }
 
+            var targetable = _entityManager.GetComponentData<TargetableComponent>(_playerEntity);
+            if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
+            {
+                targetable.Priority = 0.0f; // Полный инвиз, мобы теряют из виду!
+            }
+            else
+            {
+                targetable.Priority = 1.0f; // Обычное состояние, игрока можно атаковать
+            }
+            _entityManager.SetComponentData(_playerEntity, targetable);
+            
             if (NetworkIsDashing)
             {
                 if (!_entityManager.HasComponent<DashComponent>(_playerEntity))
@@ -177,6 +188,33 @@ namespace _Project.Scripts.Network
                 }
                 
                 _entityManager.RemoveComponent<SpawnTurretCommand>(_playerEntity);
+            }
+
+            // =========================================================================
+            // СЕТЕВАЯ ФАБРИКА: ОБРАБОТКА КОМАНДЫ НА СПАВН КЛОНА (ШИЗОИД) (ДОБАВЛЕНО)
+            // =========================================================================
+            if (_entityManager.HasComponent<SpawnCloneCommand>(_playerEntity))
+            {
+                if (HasStateAuthority)
+                {
+                    var command = _entityManager.GetComponentData<SpawnCloneCommand>(_playerEntity);
+                    var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
+
+                    if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidSkill)
+                    {
+                        Runner.Spawn(schizoidSkill.clonePrefab, command.SpawnPosition, Quaternion.identity, Object.InputAuthority, (runner, obj) =>
+                        {
+                            var cloneBridge = obj.GetComponent<CloneNetworkBridge>();
+                            if (cloneBridge != null)
+                            {
+                                // ИСПРАВЛЕНО: Передаем высчитанное направление из инпута прямо в инициализатор моста клона!
+                                cloneBridge.Initialize(Object.InputAuthority, schizoidSkill, command.RunDirection);
+                            }
+                        });
+                    }
+                }
+
+                _entityManager.RemoveComponent<SpawnCloneCommand>(_playerEntity);
             }
 
             // =========================================================================
@@ -259,13 +297,30 @@ namespace _Project.Scripts.Network
             if (!_entityManager.HasComponent<SkillConfigComponent>(_playerEntity))
                 _entityManager.AddComponent<SkillConfigComponent>(_playerEntity);
                 
+            // Сборка динамических параметров под конкретные классы
             float dashSpd = 0f;
             float dashDur = 0f;
             
+            float instabilityTime = 1f;
+            int instabilityMax = 4;
+            float instabilityDmg = 0.2f;
+            float invisDuration = 4f;
+            float cloneExplosionDmg = 150f;
+            float cloneExplosionRad = 3f;
+
             if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericData)
             {
                 dashSpd = hystericData.dashSpeed;
                 dashDur = hystericData.dashDuration;
+            }
+            else if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidData)
+            {
+                instabilityTime = schizoidData.timePerInstabilityStack;
+                instabilityMax = schizoidData.maxInstabilityStacks;
+                instabilityDmg = schizoidData.damageMultiplierPerStack;
+                invisDuration = schizoidData.invisibilityDuration;
+                cloneExplosionDmg = schizoidData.cloneExplosionDamage;
+                cloneExplosionRad = schizoidData.cloneExplosionRadius;
             }
                 
             _entityManager.SetComponentData(_playerEntity, new SkillConfigComponent
@@ -273,20 +328,49 @@ namespace _Project.Scripts.Network
                 CastDistance = castDist,
                 EffectRadius = effectRad,
                 DashSpeed = dashSpd,
-                DashDuration = dashDur
+                DashDuration = dashDur,
+                
+                // Наполнение конфига Шизоида (Добавлено)
+                InstabilityTimePerStack = instabilityTime,
+                InstabilityMaxStacks = instabilityMax,
+                InstabilityDamagePerStack = instabilityDmg,
+                InvisibilityDuration = invisDuration,
+                CloneExplosionDamage = cloneExplosionDmg,
+                CloneExplosionRadius = cloneExplosionRad
             });
 
             _entityManager.RemoveComponent<HystericTag>(_playerEntity);
             _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
             _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
             _entityManager.RemoveComponent<SchizoidTag>(_playerEntity);
+            
+            // Чистим пассивные компоненты других классов при смене архетипа
+            if (_entityManager.HasComponent<QuantumInstabilityComponent>(_playerEntity))
+                _entityManager.RemoveComponent<QuantumInstabilityComponent>(_playerEntity);
+            if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
+                _entityManager.RemoveComponent<InvisibilityStateComponent>(_playerEntity);
 
             switch (archetypeID)
             {
-                case 0: _entityManager.AddComponent<HystericTag>(_playerEntity); break;
-                case 1: _entityManager.AddComponent<ParanoiacTag>(_playerEntity); break;
-                case 2: _entityManager.AddComponent<SchizoidTag>(_playerEntity); break;
-                case 3: _entityManager.AddComponent<MelancholicTag>(_playerEntity); break;
+                case 0: 
+                    _entityManager.AddComponent<HystericTag>(_playerEntity); 
+                    break;
+                case 1: 
+                    _entityManager.AddComponent<ParanoiacTag>(_playerEntity); 
+                    break;
+                case 2: 
+                    _entityManager.AddComponent<SchizoidTag>(_playerEntity);
+                    // ИСПРАВЛЕНО: Даем Шизоиду структуру для обсчета Квантовой нестабильности
+                    _entityManager.AddComponentData(_playerEntity, new QuantumInstabilityComponent
+                    {
+                        CurrentStacks = 0,
+                        Timer = 0f,
+                        TimeSinceLastDamage = 10f // Изначально урона не было давно
+                    });
+                    break;
+                case 3: 
+                    _entityManager.AddComponent<MelancholicTag>(_playerEntity); 
+                    break;
             }
         }
 
@@ -318,6 +402,27 @@ namespace _Project.Scripts.Network
         {
             if (Object == null || !Object.IsValid) return 0;
             return NetworkCurrentCharges;
+        }
+        
+        private void Update()
+        {
+            if (_spriteRenderer == null) return;
+
+            // Проверяем, есть ли на нашей ECS-сущности компонент невидимости
+            if (_entityManager.Exists(_playerEntity) && _entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
+            {
+                // Если невидим — делаем спрайт полупрозрачным (альфа 0.3f)
+                Color c = _spriteRenderer.color;
+                c.a = 0.3f;
+                _spriteRenderer.color = c;
+            }
+            else
+            {
+                // Когда инвиз спал — возвращаем полную видимость
+                Color c = _spriteRenderer.color;
+                c.a = 1.0f;
+                _spriteRenderer.color = c;
+            }
         }
     }
 }

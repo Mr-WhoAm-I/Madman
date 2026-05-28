@@ -8,6 +8,7 @@ namespace _Project.Scripts.ECS.Systems
     [UpdateInGroup(typeof(FusionUpdateGroup))]
     [UpdateAfter(typeof(HystericSkillSystem))]
     [UpdateAfter(typeof(ParanoiacSkillSystem))]
+    [UpdateAfter(typeof(SchizoidActiveSkillSystem))]
     [UpdateAfter(typeof(SkillCooldownSystem))]
     public partial class PlayerNetworkPushSystem : SystemBase
     {

@@ -8,19 +8,15 @@ using _Project.Scripts.Network;
 
 namespace _Project.Scripts.ECS.Systems
 {
-    // ИСПРАВЛЕНИЕ: Убрали [BurstCompile] с самой системы, чтобы легально читать синглтоны Unity
     [UpdateInGroup(typeof(FusionUpdateGroup))]
     public partial struct EnemyMovementSystem : ISystem
     {
         public void OnUpdate(ref SystemState state)
         {
-            // Эта управляемая проверка теперь выполняется безопасно на главном потоке
             if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.HasStateAuthority)
                 return;
 
             var deltaTime = EnemySwarmManager.Instance.Runner.DeltaTime;
-            
-            // Используем Allocator.TempJob, так как данные пойдут в многопоточную джобу
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
             var targetQuery = SystemAPI.QueryBuilder().WithAll<LocalTransform, TargetableComponent>().Build();
@@ -29,21 +25,17 @@ namespace _Project.Scripts.ECS.Systems
             var targetPriorities = targetQuery.ToComponentDataArray<TargetableComponent>(Allocator.TempJob);
             var tauntLookup = SystemAPI.GetComponentLookup<TauntComponent>(true);
 
-            // Инициализируем нашу сверхбыструю Burst-джобу данными
             var movementJob = new EnemyMovementJob
             {
                 DeltaTime = deltaTime,
-                Ecb = ecb.AsParallelWriter(), // ParallelWriter позволяет безопасно писать из разных потоков
+                Ecb = ecb.AsParallelWriter(), 
                 Targets = targets,
                 TargetTransforms = targetTransforms,
                 TargetPriorities = targetPriorities,
                 TauntLookup = tauntLookup
             };
 
-            // Запускаем параллельное вычисление на все ядра процессора
             state.Dependency = movementJob.ScheduleParallel(state.Dependency);
-            
-            // Гарантируем, что джоба завершится до выполнения команд создания/уничтожения существ
             state.Dependency.Complete();
 
             ecb.Playback(state.EntityManager);
@@ -55,7 +47,6 @@ namespace _Project.Scripts.ECS.Systems
         }
     }
 
-    // ВЫНЕСЕНО: Вся тяжелая симуляция упакована в нативную Burst-джобу
     [BurstCompile]
     public partial struct EnemyMovementJob : IJobEntity
     {
@@ -67,7 +58,6 @@ namespace _Project.Scripts.ECS.Systems
         [ReadOnly] public NativeArray<TargetableComponent> TargetPriorities;
         [ReadOnly] public ComponentLookup<TauntComponent> TauntLookup;
 
-        // Этот метод Burst распараллелит автоматически для каждого моба в игре
         public void Execute(Entity entity, [ChunkIndexInQuery] int chunkIndex, ref LocalTransform transform, in EnemyMovementComponent movement, in EnemyTagComponent enemyTag)
         {
             float3 enemyPos = transform.Position;
@@ -79,11 +69,15 @@ namespace _Project.Scripts.ECS.Systems
             // 1. ПОИСК ЛУЧШЕЙ ЦЕЛИ
             for (int i = 0; i < Targets.Length; i++)
             {
+                float currentPriority = TargetPriorities[i].Priority;
+
+                // АБСОЛЮТНЫЙ ИНВИЗ: Если приоритет цели равен 0 (или сброшен инвизом),
+                // вражеский ИИ полностью слепнет к этой сущности и идет мимо!
+                if (currentPriority <= 0.001f) continue;
+
                 float3 targetPos = TargetTransforms[i].Position;
                 float dist = math.distance(enemyPos, targetPos);
-
                 float allowedAgroRange = 20f; 
-                float currentPriority = TargetPriorities[i].Priority;
 
                 if (currentPriority > 1.0f && TauntLookup.HasComponent(Targets[i]))
                 {
@@ -98,7 +92,6 @@ namespace _Project.Scripts.ECS.Systems
                     {
                         isBetterTarget = true;
                     }
-                    // ИСПРАВЛЕНИЕ: Burst не любит методы Mathf. Заменили на чистую математику дельты
                     else if (math.abs(currentPriority - maxPriority) < 0.001f && dist < minDistance)
                     {
                         isBetterTarget = true;
@@ -122,7 +115,6 @@ namespace _Project.Scripts.ECS.Systems
 
             if (distance < 0.8f) 
             {
-                // Для ParallelWriter обязательно передаем chunkIndex, чтобы команды не перемешались
                 Ecb.AddComponent(chunkIndex, bestTarget, new TakeDamageComponent { Amount = 10f });
                 Ecb.DestroyEntity(chunkIndex, entity); 
             }
