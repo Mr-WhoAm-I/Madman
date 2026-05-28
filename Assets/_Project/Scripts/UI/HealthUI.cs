@@ -12,18 +12,27 @@ namespace _Project.Scripts.UI
 
         private Health _localPlayerHealth;
 
+        private void Start()
+        {
+            FindLocalPlayerHealth();
+        }
+
         private void Update()
         {
-            // 1. Если локальный игрок еще не найден (или он умер и был удален сервером)
-            if (_localPlayerHealth == null)
+            // ЗАЩИТА: Проверяем не только на null, но и на то, жив ли сетевой объект (IsValid)
+            if (!_localPlayerHealth || !_localPlayerHealth.Object || !_localPlayerHealth.Object.IsValid)
             {
-                FindLocalPlayerHealth();
-                
-                // Если после поиска игрок всё еще не найден, прерываем выполнение (это спасает от ошибки бессмертия)
-                if (_localPlayerHealth == null) return; 
-            }
+                _localPlayerHealth = null; // Сбрасываем сломанную ссылку
 
-            // 2. Игрок жив и найден — обновляем UI
+                // Если игрок мертв или мы отключились — просто обнуляем полоску и прерываем Update
+                if (!_localPlayerHealth) 
+                {
+                    healthFillImage.fillAmount = 0f; 
+                    return; 
+                }
+            }
+            
+            // Если мы дошли сюда, значит объект 100% жив и валиден
             healthFillImage.fillAmount = _localPlayerHealth.CurrentHealth / _localPlayerHealth.MaxHealth;
         }
 
@@ -37,12 +46,10 @@ namespace _Project.Scripts.UI
                 var networkObject = health.GetComponent<NetworkObject>();
                 
                 // Проверяем, принадлежит ли этот сетевой объект НАШЕМУ клиенту
-                if (networkObject != null && networkObject.HasInputAuthority)
-                {
-                    _localPlayerHealth = health;
-                    Debug.Log("[UI] Локальная полоска здоровья успешно привязана к Безумцу.");
-                    break; // Игрок найден, прекращаем поиск
-                }
+                if (networkObject == null || !networkObject.HasInputAuthority) continue;
+                _localPlayerHealth = health;
+                Debug.Log("[UI] Локальная полоска здоровья успешно привязана к Безумцу.");
+                break; // Игрок найден, прекращаем поиск
             }
         }
     }

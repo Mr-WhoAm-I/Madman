@@ -1,105 +1,84 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Transforms;
 using Unity.Mathematics;
 using _Project.Scripts.ECS.Components;
 using _Project.Scripts.Network;
+using UnityEngine;
 
 namespace _Project.Scripts.ECS.Systems
 {
+    [BurstCompile]
     [UpdateInGroup(typeof(FusionUpdateGroup))]
-    public partial class EnemyMovementSystem : SystemBase
+    public partial struct EnemyMovementSystem : ISystem
     {
-        protected override void OnUpdate()
+        public void OnUpdate(ref SystemState state)
         {
-            // 1. БЕЗОПАСНАЯ ПРОВЕРКА (Защита от крашей при выходе из сессии)
-            if (EnemySwarmManager.Instance == null || EnemySwarmManager.Instance.Object == null || !EnemySwarmManager.Instance.HasStateAuthority) 
+            if (EnemySwarmManager.Instance == null || !EnemySwarmManager.Instance.HasStateAuthority)
                 return;
 
-            // 2. ПОЛУЧАЕМ ПРАВИЛЬНОЕ ВРЕМЯ FUSION (Защита от медленного движения)
-            float deltaTime = 0.01666f; 
-            if (SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComp))
-            {
-                deltaTime = timeComp.DeltaTime;
-            }
-            if (deltaTime <= 0f) deltaTime = 0.01666f; // Fallback на стандартный тик
-
+            float deltaTime = SystemAPI.Time.DeltaTime;
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+
+            // Кэшируем Query всех целей для максимальной скорости
+            var targetQuery = SystemAPI.QueryBuilder().WithAll<LocalTransform, TargetableComponent>().Build();
+            var targets = targetQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+            var targetTransforms = targetQuery.ToComponentDataArray<LocalTransform>(Unity.Collections.Allocator.Temp);
+            var targetPriorities = targetQuery.ToComponentDataArray<TargetableComponent>(Unity.Collections.Allocator.Temp);
 
             foreach (var (transform, movement, entity) in SystemAPI.Query<RefRW<LocalTransform>, RefRO<EnemyMovementComponent>>().WithEntityAccess().WithAll<EnemyTagComponent>())
             {
-                var enemyPos = transform.ValueRO.Position;
-                float3 targetPos = float3.zero;
-                bool hasTarget = false;
-                float minDistance = float.MaxValue;
-                
-                PlayerManager closestPlayer = null;
-                TurretNetworkBridge closestTurret = null;
+                float3 enemyPos = transform.ValueRO.Position;
+                Entity bestTarget = Entity.Null;
+                float3 bestTargetPos = float3.zero;
+                float maxPriority = -1f;
+                float minDistance = 20f; 
 
-                // 3. ИЩЕМ АКТИВНЫЕ ТУРЕЛИ (ПРИОРИТЕТ)
-                // Обратный цикл for защищает от ошибки "Collection was modified" при уничтожении турели
-                for (int i = TurretNetworkBridge.ActiveTurrets.Count - 1; i >= 0; i--)
+                // 1. ПОИСК ЛУЧШЕЙ ЦЕЛИ
+                for (int i = 0; i < targets.Length; i++)
                 {
-                    var turret = TurretNetworkBridge.ActiveTurrets[i];
-                    
-                    // Жесткая защита от ссылок на уничтоженные объекты (Unity null check)
-                    if (turret == null || turret.Object == null || !turret.IsTaunting) continue;
+                    float3 targetPos = targetTransforms[i].Position;
+                    float dist = math.distance(enemyPos, targetPos);
 
-                    var turretPos = new float3(turret.transform.position.x, turret.transform.position.y, 0f);
-                    float dist = math.distance(enemyPos, turretPos);
-
-                    if (dist <= 10f && dist < minDistance) // 10f - радиус агра
+                    // Проверяем только тех, кто в радиусе агра (например, 20f)
+                    if (dist < 20f) 
                     {
-                        minDistance = dist;
-                        targetPos = turretPos;
-                        hasTarget = true;
-                        closestTurret = turret;
-                    }
-                }
+                        float currentPriority = targetPriorities[i].Priority;
+                        bool isBetterTarget = false;
 
-                // 4. ЕСЛИ НЕТ ТУРЕЛЕЙ - ИЩЕМ ИГРОКА
-                if (!hasTarget)
-                {
-                    for (int i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
-                    {
-                        var player = PlayerManager.AllActivePlayers[i];
-                        if (player == null || player.gameObject == null) continue;
-
-                        var playerPos = new float3(player.transform.position.x, player.transform.position.y, 0f);
-                        var dist = math.distance(enemyPos, playerPos);
-
-                        if (dist < minDistance)
+                        // Если приоритет строго выше — переключаемся на эту цель
+                        if (currentPriority > maxPriority)
                         {
+                            isBetterTarget = true;
+                        }
+                        // Если приоритеты РАВНЫ (например, 1.0 и 1.0), выбираем того, кто БЛИЖЕ
+                        else if (Mathf.Approximately(currentPriority, maxPriority) && dist < minDistance)
+                        {
+                            isBetterTarget = true;
+                        }
+
+                        if (isBetterTarget)
+                        {
+                            maxPriority = currentPriority;
                             minDistance = dist;
-                            targetPos = playerPos;
-                            hasTarget = true;
-                            closestPlayer = player;
+                            bestTarget = targets[i];
+                            bestTargetPos = targetPos;
                         }
                     }
                 }
 
-                // Если вообще никого нет на карте - стоим на месте
-                if (!hasTarget) continue;
+                if (bestTarget == Entity.Null) continue;
 
-                var direction = targetPos - enemyPos;
-                var distance = math.length(direction); 
+                // 2. ДВИЖЕНИЕ И АТАКА
+                var direction = bestTargetPos - enemyPos;
+                var distance = math.length(direction);
 
-                // 5. СТОЛКНОВЕНИЕ И УРОН
-                if (distance < 0.5f)
+                if (distance < 0.8f) // Дистанция атаки
                 {
-                    if (closestTurret != null && closestTurret.Object != null && closestTurret.HasStateAuthority)
-                    {
-                        closestTurret.Health -= 10f; 
-                    }
-                    else if (closestPlayer != null && closestPlayer.gameObject != null)
-                    {
-                        var targetHealth = closestPlayer.GetComponent<Health>();
-                        if (targetHealth != null && targetHealth.HasStateAuthority)
-                        {
-                            targetHealth.TakeDamage(10f); 
-                        }
-                    }
+                    // Враг просто кидает "запрос на урон" в найденную цель
+                    ecb.AddComponent(bestTarget, new TakeDamageComponent { Amount = 10f });
                     
-                    ecb.DestroyEntity(entity); 
+                    ecb.DestroyEntity(entity); // Враг самоуничтожился при атаке
                 }
                 else
                 {
@@ -108,7 +87,11 @@ namespace _Project.Scripts.ECS.Systems
                 }
             }
 
-            ecb.Playback(EntityManager);
+            targets.Dispose();
+            targetTransforms.Dispose();
+            targetPriorities.Dispose();
+            
+            ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }
     }

@@ -146,7 +146,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.BulletNetworkMovement
   speed: 10
-  damage: 0
+  damage: 10
   isHit: 0
 --- !u!58 &3320792089805816741
 CircleCollider2D:

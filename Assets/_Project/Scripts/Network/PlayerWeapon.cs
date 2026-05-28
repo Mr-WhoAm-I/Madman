@@ -135,26 +135,25 @@ namespace _Project.Scripts.Network
             }
         }
 
-        public void ShootTornado360()
+        public void ShootTornado360(int bulletCount)
         {
-            // Берем оружие из первого слота
+            // Проверяем, есть ли вообще оружие в руках
             if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return;
-            
             var weapon = equippedWeapons[0];
-            var bulletCount = 12; // Сколько пуль выпустим по кругу
-            var angleStep = 360f / bulletCount;
-
-            for (var i = 0; i < bulletCount; i++)
+            
+            // Вычисляем угол между пулями
+            float angleStep = 360f / bulletCount;
+            
+            for (int i = 0; i < bulletCount; i++)
             {
-                var angle = i * angleStep;
-                var finalRotation = Quaternion.Euler(0, 0, angle);
-
-                Runner.Spawn(weapon.bulletPrefab, transform.position, finalRotation, Object.InputAuthority, (runner, obj) =>
+                Quaternion rotation = Quaternion.Euler(0, 0, i * angleStep);
+                
+                Runner.Spawn(weapon.bulletPrefab, transform.position, rotation, Object.InputAuthority, (runner, obj) =>
                 {
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
                     if (bulletMovement != null)
                     {
-                        // Твоя родная логика инициализации снаряда
+                        // Передаем характеристики экипированного оружия
                         bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed);
                     }
                 });

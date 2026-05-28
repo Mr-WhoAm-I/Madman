@@ -1198,7 +1198,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d16308a468214efb99130ac936fc8f44, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Gameplay.WaveManager
-  levelScenario: {fileID: 11400000, guid: 5288dcd5db6b0ce49a0e34728e34d40e, type: 2}
+  levelScenario: {fileID: 11400000, guid: 22412be2fa6872840a977486a8d92921, type: 2}
   _IsShopPhase:
     _value: 1
 --- !u!4 &2049929460

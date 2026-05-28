@@ -4,6 +4,7 @@ using Unity.Transforms;
 using Unity.Mathematics;
 using UnityEngine;
 using _Project.Scripts.Core;
+using _Project.Scripts.Data;
 using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.Network
@@ -11,6 +12,12 @@ namespace _Project.Scripts.Network
     public class PlayerNetworkBridge : NetworkBehaviour
     {
         [Networked] public int NetworkArchetypeID { get; set; }
+        
+        // --- ПЕРЕМЕННЫЕ ДЛЯ СИНХРОНИЗАЦИИ КУЛДАУНА ---
+        [Networked] public float NetworkCurrentCooldown { get; set; }
+        [Networked] public float NetworkMaxCooldown { get; set; }
+        [Networked] public int NetworkCurrentCharges { get; set; }
+        [Networked] public int NetworkMaxCharges { get; set; }
 
         public static PlayerNetworkBridge LocalPlayer;
         private Entity _playerEntity;
@@ -28,16 +35,15 @@ namespace _Project.Scripts.Network
                 typeof(PlayerMovementComponent),
                 typeof(LocalTransform),
                 typeof(PlayerTransformSync),
+                typeof(TargetableComponent),
                 typeof(SkillStateComponent) 
             );
 
             _entityManager.SetComponentData(_playerEntity, new PlayerMovementComponent { MoveSpeed = 5f });
             _entityManager.SetComponentData(_playerEntity, LocalTransform.FromPosition(transform.position));
             _entityManager.SetComponentData(_playerEntity, new PlayerTransformSync { Value = transform });
-            
-            // МЫ УБРАЛИ ОТСЮДА ХАРДКОД SkillStateComponent! 
-            // Он теперь задается динамически внутри ApplyArchetypeStatsToECS() -> UpdateArchetypeTag()
-
+            _entityManager.SetComponentData(_playerEntity, new TargetableComponent { Priority = 1.0f });
+            _entityManager.AddComponentData(_playerEntity, new HealthLinkComponent { Value = GetComponent<Health>() });
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
             
             if (HasInputAuthority)
@@ -76,12 +82,33 @@ namespace _Project.Scripts.Network
                 }
             }
 
+            // --- СИНХРОНИЗАЦИЯ НАВЫКОВ (СЕРВЕР -> КЛИЕНТ) ---
+            if (HasStateAuthority)
+            {
+                // Сервер читает из ECS и отдает в сеть
+                var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
+                NetworkCurrentCooldown = skillState.CurrentCooldown;
+                NetworkMaxCooldown = skillState.MaxCooldown;
+                NetworkCurrentCharges = skillState.CurrentCharges;
+                NetworkMaxCharges = skillState.MaxCharges;
+            }
+            else
+            {
+                // Клиент покорно принимает актуальные таймеры сервера
+                var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
+                skillState.CurrentCooldown = NetworkCurrentCooldown;
+                skillState.MaxCooldown = NetworkMaxCooldown;
+                skillState.CurrentCharges = NetworkCurrentCharges;
+                skillState.MaxCharges = NetworkMaxCharges;
+                _entityManager.SetComponentData(_playerEntity, skillState);
+            }
+
+            // --- ФИЗИКА И ИНПУТ ---
             var ecsTransform = _entityManager.GetComponentData<LocalTransform>(_playerEntity);
             ecsTransform.Position = transform.position;
             _entityManager.SetComponentData(_playerEntity, ecsTransform);
 
             if (!GetInput(out NetworkInputData data)) return;
-            if (!_entityManager.Exists(_playerEntity)) return;
             var inputComponent = _entityManager.GetComponentData<PlayerInputComponent>(_playerEntity);
                     
             inputComponent.PreviousButtons = inputComponent.Buttons;
@@ -98,7 +125,19 @@ namespace _Project.Scripts.Network
                     var weapon = GetComponent<PlayerWeapon>();
                     if (weapon != null)
                     {
-                        weapon.ShootTornado360();
+                        // Достаем актуальный архетип
+                        var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
+                        
+                        // Проверяем, что в слоте activeSkillData действительно лежит навык Истерика
+                        if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
+                        {
+                            weapon.ShootTornado360(hystericSkill.bulletCount);
+                        }
+                        else 
+                        {
+                            // Фолбек на случай, если данные в Инспекторе не настроили
+                            weapon.ShootTornado360(8); 
+                        }
                     }
                 }
                 _entityManager.RemoveComponent<Trigger360ShootTag>(_playerEntity);
@@ -136,22 +175,23 @@ namespace _Project.Scripts.Network
                 _entityManager.AddComponent<ArchetypeComponent>(_playerEntity);
             _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
 
-            // --- НОВОЕ: ЧИТАЕМ КУЛДАУН ИЗ SCRIPTABLE OBJECT ---
-            var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
-            float skillCooldown = archetypeData != null && archetypeData.activeSkillData != null 
-                ? archetypeData.activeSkillData.cooldown 
-                : 5f; // Значение по умолчанию, если навык не назначен
+            // Базовые параметры навыка выставляем только на сервере
+            if (HasStateAuthority)
+            {
+                var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
+                float skillCooldown = archetypeData != null && archetypeData.activeSkillData != null 
+                    ? archetypeData.activeSkillData.cooldown 
+                    : 5f; 
 
-            // Устанавливаем SkillStateComponent динамически для любого класса
-            _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
-            { 
-                MaxCooldown = skillCooldown, 
-                CurrentCooldown = 0f, 
-                MaxCharges = 1, 
-                CurrentCharges = 1 
-            });
-            // ---------------------------------------------------
-            
+                _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
+                { 
+                    MaxCooldown = skillCooldown, 
+                    CurrentCooldown = 0f, 
+                    MaxCharges = 1, 
+                    CurrentCharges = 1 
+                });
+            }
+
             _entityManager.RemoveComponent<HystericTag>(_playerEntity);
             _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
             _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
@@ -164,7 +204,6 @@ namespace _Project.Scripts.Network
                     break;
                 case 1:
                     _entityManager.AddComponent<ParanoiacTag>(_playerEntity);
-                    // Хардкод 8f удален! Теперь кулдаун берется из CerberusTurretData.asset
                     break;
                 case 2:
                     _entityManager.AddComponent<SchizoidTag>(_playerEntity);
@@ -193,19 +232,22 @@ namespace _Project.Scripts.Network
         
         public float GetSkillCooldownPercentage()
         {
-            if (!_entityManager.Exists(_playerEntity)) return 0f;
-            var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
-                
-            if (skillState.CurrentCharges < skillState.MaxCharges && skillState.MaxCooldown > 0)
+            // ЗАЩИТА: Проверяем, существует ли еще сетевой объект
+            if (!Object || !Object.IsValid) return 0f;
+
+            if (NetworkCurrentCharges < NetworkMaxCharges && NetworkMaxCooldown > 0)
             {
-                return skillState.CurrentCooldown / skillState.MaxCooldown;
+                return NetworkCurrentCooldown / NetworkMaxCooldown;
             }
             return 0f;
         }
 
         public int GetSkillCharges()
         {
-            return _entityManager.Exists(_playerEntity) ? _entityManager.GetComponentData<SkillStateComponent>(_playerEntity).CurrentCharges : 0;
+            // ЗАЩИТА
+            if (Object == null || !Object.IsValid) return 0;
+            
+            return NetworkCurrentCharges;
         }
     }
 }

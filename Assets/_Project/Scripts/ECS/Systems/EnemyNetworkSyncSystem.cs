@@ -1,10 +1,11 @@
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Transforms;
-using Unity.Mathematics; // Для float3
+using Unity.Mathematics;
 using UnityEngine;
 using _Project.Scripts.Network;
 using _Project.Scripts.ECS.Components;
+using _Project.Scripts.ECS.Authoring; // Обязательно для EnemyPrefabElement
 
 namespace _Project.Scripts.ECS.Systems
 {
@@ -25,7 +26,6 @@ namespace _Project.Scripts.ECS.Systems
             {
                 int index = 0;
                 
-                // Читаем данные (RefRO)
                 foreach (var (transform, health) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<EnemyHealthComponent>>())
                 {
                     if (index >= 256) break;
@@ -40,7 +40,6 @@ namespace _Project.Scripts.ECS.Systems
                     index++;
                 }
 
-                // Зачищаем "хвосты" массива, если врагов стало меньше
                 for (var i = index; i < 256; i++)
                 {
                     if (swarmManager.EnemyStates[i].IsActive)
@@ -52,9 +51,37 @@ namespace _Project.Scripts.ECS.Systems
             // ---------------------------------------------------------
             else
             {
-                int index = 0;
-                
-                // Изменяем данные (RefRW), так как Клиент должен двигать объекты и менять им ХП
+                int count = 0;
+                // Считаем сколько врагов (кукол) уже есть в памяти клиента
+                foreach (var _ in SystemAPI.Query<RefRO<EnemyTagComponent>>()) 
+                    count++;
+
+                // Если массив кукол еще не заполнен - создаем их из Реестра!
+                if (count < 256)
+                {
+                    var registryQuery = SystemAPI.QueryBuilder().WithAll<EnemyPrefabElement>().Build();
+                    if (registryQuery.TryGetSingletonEntity<EnemyPrefabElement>(out var registryEntity))
+                    {
+                        var buffer = state.EntityManager.GetBuffer<EnemyPrefabElement>(registryEntity);
+                        if (buffer.Length > 0)
+                        {
+                            var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+                            var prefab = buffer[0].PrefabEntity; // Берем первый попавшийся префаб для визуала куклы
+                            
+                            for (var i = count; i < 256; i++)
+                            {
+                                var newEnemy = ecb.Instantiate(prefab);
+                                // Прячем за экран
+                                ecb.SetComponent(newEnemy, LocalTransform.FromPosition(new float3(0, 9999, 0)));
+                            }
+                            ecb.Playback(state.EntityManager);
+                            ecb.Dispose();
+                        }
+                    }
+                }
+
+                var index = 0;
+                // Синхронизируем готовые куклы с координатами Сервера
                 foreach (var (transform, health) in SystemAPI.Query<RefRW<LocalTransform>, RefRW<EnemyHealthComponent>>())
                 {
                     if (index >= 256) break;
@@ -63,15 +90,11 @@ namespace _Project.Scripts.ECS.Systems
 
                     if (networkState.IsActive)
                     {
-                        // 1. Телепортируем "куклу" точно на координаты Сервера
                         transform.ValueRW.Position = new float3(networkState.Position.x, networkState.Position.y, 0);
-                        
-                        // 2. Синхронизируем здоровье (чтобы мигание/полоски ХП работали у Клиента)
                         health.ValueRW.CurrentHealth = networkState.Health;
                     }
                     else
                     {
-                        // Простой трюк (Object Pooling): если Сервер убил врага, мы прячем "куклу" за пределы экрана
                         transform.ValueRW.Position = new float3(0, 9999, 0);
                     }
                     

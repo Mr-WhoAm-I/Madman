@@ -288,7 +288,7 @@ namespace _Project.Scripts.Network
 
             // Ждем полсекунды, пока Fusion полностью освободит ресурсы (защита от Race Condition)
             await Task.Delay(500); 
-            
+            UnityEngine.SceneManagement.SceneManager.LoadScene("HubScene");
             // StartNetworkSession сам корректно убьет зависший раннер и загрузит нас в Solo
             await StartNetworkSession(NetworkGameMode.Solo);
 

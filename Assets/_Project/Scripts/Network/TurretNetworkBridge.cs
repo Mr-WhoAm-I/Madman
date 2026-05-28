@@ -11,18 +11,16 @@ namespace _Project.Scripts.Network
     public class TurretNetworkBridge : NetworkBehaviour
     {
         public static readonly List<TurretNetworkBridge> ActiveTurrets = new List<TurretNetworkBridge>();
-
-        [Networked] public float Health { get; set; }
-        [Networked] public float MaxHealth { get; set; }
         [Networked] public PlayerRef OwnerPlayer { get; set; }
         [Networked] public NetworkBool IsTaunting { get; set; } 
         
         private Entity _turretEntity;
         private EntityManager _entityManager;
         private TurretSkillData _skillData;
+        private Health _healthComponent;
         
-        [Networked] private TickTimer _fireTimer { get; set; }
-        [Networked] private TickTimer _tauntTimer { get; set; }
+        [Networked] private TickTimer FireTimer { get; set; }
+        [Networked] private TickTimer TauntTimer { get; set; }
 
         public void Initialize(PlayerRef owner, TurretSkillData data)
         {
@@ -35,21 +33,31 @@ namespace _Project.Scripts.Network
             ActiveTurrets.Add(this);
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
 
-            if (HasStateAuthority && _skillData != null)
+            _healthComponent = GetComponent<Health>();
+            
+            if (_healthComponent != null && HasStateAuthority && _skillData != null)
             {
-                MaxHealth = _skillData.baseHealth; 
-                Health = MaxHealth;
+                _healthComponent.MaxHealth = _skillData.baseHealth; 
+                _healthComponent.CurrentHealth = _skillData.baseHealth;
                 IsTaunting = true; 
-                _tauntTimer = TickTimer.CreateFromSeconds(Runner, _skillData.tauntDuration);
-                _fireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
+                TauntTimer = TickTimer.CreateFromSeconds(Runner, _skillData.tauntDuration);
+                FireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
             }
 
+            // СОЗДАЕМ ECS-СУЩНОСТЬ
             _turretEntity = _entityManager.CreateEntity(
-                typeof(TargetableTag),
-                typeof(LocalTransform)
+                typeof(LocalTransform),
+                typeof(TargetableComponent) 
             );
 
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
+            
+            // Если турель сразу при спавне таунтит, даем ей приоритет 5, иначе 1
+            float initialPriority = IsTaunting ? 5.0f : 1.0f;
+            _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = initialPriority });
+
+            // Передаем ссылку на Health в ECS!
+            _entityManager.AddComponentData(_turretEntity, new HealthLinkComponent { Value = _healthComponent });
         }
 
         public override void FixedUpdateNetwork()
@@ -68,17 +76,21 @@ namespace _Project.Scripts.Network
                     }
                 }
                 
-                if (!isOwnerAlive || Health <= 0)
+                if (!isOwnerAlive || _healthComponent == null || _healthComponent.IsDead)
                 {
                     Runner.Despawn(Object);
                     return;
                 }
 
                 // 2. ОБНОВЛЕНИЕ АГРО
-                if (IsTaunting && _tauntTimer.Expired(Runner))
+                
+                if (IsTaunting && TauntTimer.Expired(Runner))
                 {
                     IsTaunting = false; 
                 }
+                
+                var currentPriority = IsTaunting ? 5.0f : 1.0f;
+                _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = currentPriority });
             }
 
             if (!_entityManager.Exists(_turretEntity)) return;
@@ -91,13 +103,13 @@ namespace _Project.Scripts.Network
         {
             if (!HasStateAuthority || _skillData == null || !_skillData.bulletPrefab.IsValid) return;
 
-            if (_fireTimer.Expired(Runner))
+            if (FireTimer.Expired(Runner))
             {
                 var targetDir = FindClosestEnemyDirection();
                 if (targetDir != Vector2.zero)
                 {
                     Runner.Spawn(_skillData.bulletPrefab, transform.position, Quaternion.LookRotation(Vector3.forward, targetDir), OwnerPlayer);
-                    _fireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
+                    FireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
                 }
             }
         }
