@@ -1,62 +1,60 @@
-using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using _Project.Scripts.Network;
+using Unity.Collections;
 using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.ECS.Systems
 {
     [UpdateInGroup(typeof(FusionUpdateGroup))]
-    [BurstCompile]
+    [UpdateAfter(typeof(SkillInputSystem))] // Обрабатываем строго после сбора инпута
     public partial struct ParanoiacSkillSystem : ISystem
     {
-        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkTimeComponent>();
         }
 
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // Используем ECB для создания сущностей-запросов внутри Job-ов или Burst-систем
-            var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-            // ФИЛЬТР: Только сущности с ParanoiacTag
-            foreach (var (input, skillState, transform, archetype, owner) in SystemAPI.Query<RefRO<PlayerInputComponent>, RefRW<SkillStateComponent>, RefRO<LocalTransform>, RefRO<ArchetypeComponent>, RefRO<PlayerOwnerComponent>>().WithAll<ParanoiacTag>())
+            // Запрос включает в себя все необходимые компоненты для безопасного расчета в сети
+            foreach (var (skillState, request, config, transform, bridgeRef, entity) in 
+                     SystemAPI.Query<RefRW<SkillStateComponent>, RefRO<ExecuteSkillRequest>, RefRO<SkillConfigComponent>, RefRO<LocalTransform>, PlayerBridgeReference>()
+                     .WithAll<ParanoiacTag>()
+                     .WithEntityAccess())
             {
-                // Читаем биты кнопки (с учетом Server-Authoritative Input)
-                bool isSkillPressed = (input.ValueRO.Buttons.Bits & (1 << (int)PlayerInputButtons.Skill)) != 0;
-                bool wasPrevPressed = (input.ValueRO.PreviousButtons.Bits & (1 << (int)PlayerInputButtons.Skill)) != 0;
-                bool justPressed = isSkillPressed && !wasPrevPressed;
+                // КРИТИЧЕСКИЙ ПРЕДОХРАНИТЕЛЬ: Изменяем заряды и создаем команды спавна
+                // только при движении в реальное будущее, защищая клиента от лавины ресимуляций
+                if (!bridgeRef.Bridge.Runner.IsForward) continue;
 
-                if (justPressed && skillState.ValueRO.CurrentCharges > 0 && skillState.ValueRO.CurrentCooldown <= 0f)
+                // 1. Потребляем заряд навыка и активируем перезарядку
+                skillState.ValueRW.CurrentCharges--;
+                if (skillState.ValueRW.CurrentCooldown <= 0f)
                 {
-                    // 1. Запускаем кулдаун
                     skillState.ValueRW.CurrentCooldown = skillState.ValueRO.MaxCooldown;
-                    skillState.ValueRW.CurrentCharges--;
-
-                    // 2. Вычисляем точку установки турели (бросаем на 4 метра по направлению прицела)
-                    float3 throwDir = new float3(input.ValueRO.AimDirection.x, input.ValueRO.AimDirection.y, 0);
-                    
-                    // Защита от броска без направления (например, если вектор равен нулю)
-                    if (math.lengthsq(throwDir) < 0.1f) throwDir = new float3(0, 1, 0);
-                    
-                    float3 targetPosition = transform.ValueRO.Position + (math.normalize(throwDir) * 4f);
-
-                    // 3. Создаем ECS-запрос на спавн
-                    var requestEntity = ecb.CreateEntity();
-                    ecb.AddComponent(requestEntity, new SpawnTurretRequest
-                    {
-                        Position = targetPosition,
-                        ArchetypeID = archetype.ValueRO.ArchetypeID,
-                        Owner = owner.ValueRO.Player // <--- Передаем владельца
-                    });
                 }
+
+                // 2. Вычисляем направление броска на основе вектора прицеливания джойстика
+                float3 throwDir = new float3(request.ValueRO.AimDirection.x, request.ValueRO.AimDirection.y, 0);
+                
+                // Защита от броска "под себя", если джойстик вернул нулевой вектор
+                if (math.lengthsq(throwDir) < 0.01f) throwDir = new float3(0, 1, 0);
+                
+                // УБРАЛИ ХАРДКОД: Дистанция броска теперь динамически берется из ScriptableObject (через конфиг)
+                float3 targetPosition = transform.ValueRO.Position + (math.normalize(throwDir) * config.ValueRO.CastDistance);
+
+                // 3. Добавляем команду спавна турели прямо на сущность этого игрока
+                ecb.AddComponent(entity, new SpawnTurretCommand
+                {
+                    Position = targetPosition
+                });
+
+                // 4. Удаляем запрос инпута, чтобы симуляция не повторилась на следующем тике
+                ecb.RemoveComponent<ExecuteSkillRequest>(entity);
             }
 
-            // Применяем изменения
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }

@@ -1,6 +1,5 @@
 using Fusion;
 using Unity.Entities;
-using Unity.Mathematics;
 
 namespace _Project.Scripts.ECS.Components
 {
@@ -17,13 +16,6 @@ namespace _Project.Scripts.ECS.Components
     public struct PlayerOwnerComponent : IComponentData
     {
         public PlayerRef Player;
-    }
-
-    public struct SpawnTurretRequest : IComponentData
-    {
-        public float3 Position;
-        public int ArchetypeID;
-        public PlayerRef Owner; // Передаем владельца в запрос
     }
 
     // Компонент, чтобы ECS знал, какой у игрока класс

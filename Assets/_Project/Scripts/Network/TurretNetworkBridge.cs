@@ -11,6 +11,7 @@ namespace _Project.Scripts.Network
     public class TurretNetworkBridge : NetworkBehaviour
     {
         public static readonly List<TurretNetworkBridge> ActiveTurrets = new List<TurretNetworkBridge>();
+        
         [Networked] public PlayerRef OwnerPlayer { get; set; }
         [Networked] public NetworkBool IsTaunting { get; set; } 
         
@@ -44,19 +45,18 @@ namespace _Project.Scripts.Network
                 FireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
             }
 
-            // СОЗДАЕМ ECS-СУЩНОСТЬ
+            // ИСПРАВЛЕНО: Добавили регистрирацию TauntComponent на сущности турели в ECS
             _turretEntity = _entityManager.CreateEntity(
                 typeof(LocalTransform),
-                typeof(TargetableComponent) 
+                typeof(TargetableComponent),
+                typeof(TauntComponent)
             );
 
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
             
-            // Если турель сразу при спавне таунтит, даем ей приоритет 5, иначе 1
             float initialPriority = IsTaunting ? 5.0f : 1.0f;
             _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = initialPriority });
 
-            // Передаем ссылку на Health в ECS!
             _entityManager.AddComponentData(_turretEntity, new HealthLinkComponent { Value = _healthComponent });
         }
 
@@ -64,7 +64,7 @@ namespace _Project.Scripts.Network
         {
             if (HasStateAuthority)
             {
-                // 1. ЖЕСТКАЯ ПРОВЕРКА ВЛАДЕЛЬЦА (Уничтожение при выходе игрока)
+                // 1. АВТОР СЕРВЕРНАЯ ПРОВЕРКА ВЛАДЕЛЬЦА
                 bool isOwnerAlive = false;
                 for (int i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
                 {
@@ -82,19 +82,31 @@ namespace _Project.Scripts.Network
                     return;
                 }
 
-                // 2. ОБНОВЛЕНИЕ АГРО
-                
+                // 2. ОБНОВЛЕНИЕ СЕТЕВОГО СОСТОЯНИЯ ТАУНТА ПО ТАЙМЕРУ
                 if (IsTaunting && TauntTimer.Expired(Runner))
                 {
                     IsTaunting = false; 
                 }
-                
-                var currentPriority = IsTaunting ? 5.0f : 1.0f;
-                _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = currentPriority });
             }
 
+            // =========================================================================
+            // ФАЗА ПУЛЛА ДЛЯ ТУРЕЛИ: СЕТЬ -> ECS
+            // =========================================================================
             if (!_entityManager.Exists(_turretEntity)) return;
+            
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
+
+            float currentPriority = IsTaunting ? 5.0f : 1.0f;
+            _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = currentPriority });
+
+            // ИСПРАВЛЕНО: Записываем актуальный динамический радиус таунта. 
+            // Если турель оттаунтила, её радиус падает в 0, чтобы мобы переключились обратно на игроков.
+            float currentRadius = IsTaunting ? (_skillData != null ? _skillData.effectRadius : 10f) : 0f;
+            _entityManager.SetComponentData(_turretEntity, new TauntComponent 
+            { 
+                Radius = currentRadius, 
+                TimeRemaining = 0f 
+            });
 
             UpdateShooting();
         }
@@ -120,7 +132,7 @@ namespace _Project.Scripts.Network
             if (swarmManager == null || swarmManager.Object == null) return Vector2.zero;
 
             Vector2 myPos = transform.position;
-            Vector2 closestDir = Vector2.zero;
+            Vector2 MyClosestDir = Vector2.zero;
             float closestDist = float.MaxValue;
 
             for (int i = 0; i < swarmManager.EnemyStates.Length; i++)
@@ -132,10 +144,10 @@ namespace _Project.Scripts.Network
                 if (dist <= _skillData.attackRadius && dist < closestDist)
                 {
                     closestDist = dist;
-                    closestDir = (enemy.Position - myPos).normalized;
+                    MyClosestDir = (enemy.Position - myPos).normalized;
                 }
             }
-            return closestDir;
+            return MyClosestDir;
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -149,8 +161,6 @@ namespace _Project.Scripts.Network
 
         private void OnDestroy()
         {
-            // Подстраховка: если сцена выгружается (переход в Хаб), 
-            // вычищаем мертвую турель из статического списка
             if (ActiveTurrets.Contains(this))
             {
                 ActiveTurrets.Remove(this);

@@ -7,6 +7,7 @@ namespace _Project.Scripts.ECS.Systems
     // Эта система срабатывает в самом конце сетевого тика Fusion, сохраняя результаты в сеть
     [UpdateInGroup(typeof(FusionUpdateGroup))]
     [UpdateAfter(typeof(HystericSkillSystem))]
+    [UpdateAfter(typeof(ParanoiacSkillSystem))]
     [UpdateAfter(typeof(SkillCooldownSystem))]
     public partial class PlayerNetworkPushSystem : SystemBase
     {

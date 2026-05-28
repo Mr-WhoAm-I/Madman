@@ -9,6 +9,8 @@ using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.Network
 {
+    // ААА-СТАНДАРТ ДЛЯ FUSION 2: Используем нативный порядок выполнения Unity, 
+    // чтобы шлюз всегда выполнял пулл данных в ECS раньше, чем физика бега или оружия начнет их читать.
     [DefaultExecutionOrder(-10)]
     public class PlayerNetworkBridge : NetworkBehaviour
     {
@@ -53,6 +55,11 @@ namespace _Project.Scripts.Network
             _entityManager.AddComponentData(_playerEntity, new HealthLinkComponent { Value = GetComponent<Health>() });
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
             
+            // ИСПРАВЛЕНИЕ БАГА АГРА: Инициализируем базовый приоритет игрока равным 1.0f.
+            // Теперь, когда таунт Цербера закончится (и упадет до 1.0f), приоритеты сравняются,
+            // и мобы начнут корректно выбирать ближайшую цель!
+            _entityManager.SetComponentData(_playerEntity, new TargetableComponent { Priority = 1.0f });
+            
             _entityManager.AddComponentData(_playerEntity, new PlayerBridgeReference { Bridge = this });
             
             if (HasInputAuthority)
@@ -94,9 +101,6 @@ namespace _Project.Scripts.Network
             // =========================================================================
             // ФАЗА ПУЛЛА: СЕТЬ -> ECS
             // =========================================================================
-            
-            // ИСПРАВЛЕНИЕ: Пуллим данные в ECS только тогда, когда сеть гарантированно 
-            // прислала инициализированные сервером параметры. Защищает от "Нулевого замка".
             if (NetworkMaxCharges > 0)
             {
                 var skillState = _entityManager.GetComponentData<SkillStateComponent>(_playerEntity);
@@ -130,7 +134,53 @@ namespace _Project.Scripts.Network
             }
 
             // =========================================================================
-            // СБОР КООРДИНАТ И ИНПУТА
+            // СЕТЕВАЯ ФАБРИКА: ОБРАБОТКА КОМАНДЫ НА СПАВН ТУРЕТИ (ПАРАНОИК)
+            // =========================================================================
+            if (_entityManager.HasComponent<SpawnTurretCommand>(_playerEntity))
+            {
+                if (HasStateAuthority)
+                {
+                    var command = _entityManager.GetComponentData<SpawnTurretCommand>(_playerEntity);
+                    var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
+                    
+                    if (archetypeData != null && archetypeData.activeSkillData is TurretSkillData turretSkill)
+                    {
+                        int activeCount = 0;
+                        TurretNetworkBridge oldestTurret = null;
+                        
+                        for (int i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
+                        {
+                            if (TurretNetworkBridge.ActiveTurrets[i].OwnerPlayer == Object.InputAuthority)
+                            {
+                                activeCount++;
+                                if (oldestTurret == null) 
+                                {
+                                    oldestTurret = TurretNetworkBridge.ActiveTurrets[i];
+                                }
+                            }
+                        }
+
+                        if (activeCount >= turretSkill.maxTurrets && oldestTurret != null)
+                        {
+                            Runner.Despawn(oldestTurret.Object);
+                        }
+
+                        Runner.Spawn(turretSkill.turretPrefab, command.Position, Quaternion.identity, Object.InputAuthority, (runner, obj) => 
+                        {
+                            var turretBridge = obj.GetComponent<TurretNetworkBridge>();
+                            if (turretBridge != null)
+                            {
+                                turretBridge.Initialize(Object.InputAuthority, turretSkill);
+                            }
+                        });
+                    }
+                }
+                
+                _entityManager.RemoveComponent<SpawnTurretCommand>(_playerEntity);
+            }
+
+            // =========================================================================
+            // СБОР КООРДИНАТ И ИНПУТА В ECS
             // =========================================================================
             var ecsTransform = _entityManager.GetComponentData<LocalTransform>(_playerEntity);
             ecsTransform.Position = transform.position;
@@ -190,8 +240,6 @@ namespace _Project.Scripts.Network
                 effectRad = archetypeData.activeSkillData.effectRadius;
             }
 
-            // ИСПРАВЛЕНИЕ: Зарождаем истинные данные прямо во Fusion свойствах на Сервере.
-            // Это гарантирует, что клиенты получат верные настройки из сети при первом же тике.
             if (HasStateAuthority)
             {
                 NetworkMaxCooldown = skillCooldown;
@@ -200,7 +248,6 @@ namespace _Project.Scripts.Network
                 NetworkCurrentCharges = maxCharges;
             }
 
-            // Локальное наполнение ECS для мгновенной готовности
             _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
             { 
                 MaxCooldown = skillCooldown, 
