@@ -196,7 +196,7 @@ namespace _Project.Scripts.Network
             inputData.MovementInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
 
             // Базовое направление (мышь ПК или правый стик прицеливания)
-            Vector2 baseAimDirection = Vector2.up;
+            var baseAimDirection = Vector2.up;
             var aimValue = _playerControls.Gameplay.Aim.ReadValue<Vector2>();
             
             if (aimValue.magnitude > 1f && Camera.main != null) 
@@ -212,10 +212,10 @@ namespace _Project.Scripts.Network
             }
 
             // --- КРОССПЛАТФОРМЕННАЯ ЛОГИКА НАВЫКА ---
-            bool isSkillFired = false;
+            var isSkillFired = false;
 
             // 1. Проверяем мобильный MOBA-джойстик (присутствует ли он и был ли отпущен палец)
-            if (MobaSkillJoystick.Instance != null && MobaSkillJoystick.Instance.ConsumeFireEvent(out Vector2 joystickAim))
+            if (MobaSkillJoystick.Instance != null && MobaSkillJoystick.Instance.ConsumeFireEvent(out var joystickAim))
             {
                 isSkillFired = true;
                 

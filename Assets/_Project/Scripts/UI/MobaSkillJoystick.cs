@@ -49,10 +49,10 @@ namespace _Project.Scripts.UI
                 (RectTransform)transform, 
                 eventData.position, 
                 eventData.pressEventCamera, 
-                out Vector2 localPoint);
+                out var localPoint);
 
             // Ограничиваем сдвиг
-            Vector2 clampedPos = Vector2.ClampMagnitude(localPoint, maxDragDistance);
+            var clampedPos = Vector2.ClampMagnitude(localPoint, maxDragDistance);
             
             if (handle != null)
             {
@@ -95,18 +95,18 @@ namespace _Project.Scripts.UI
             if (PlayerNetworkBridge.LocalPlayer == null) return Vector2.zero;
 
             Vector2 playerPos = PlayerNetworkBridge.LocalPlayer.transform.position;
-            Vector2 closestDir = Vector2.zero;
-            float closestDist = float.MaxValue;
+            var closestDir = Vector2.zero;
+            var closestDist = float.MaxValue;
 
             var swarmManager = EnemySwarmManager.Instance;
             if (swarmManager != null)
             {
-                for (int i = 0; i < swarmManager.EnemyStates.Length; i++)
+                for (var i = 0; i < swarmManager.EnemyStates.Length; i++)
                 {
                     var enemy = swarmManager.EnemyStates[i];
                     if (!enemy.IsActive) continue;
 
-                    float dist = Vector2.Distance(playerPos, enemy.Position);
+                    var dist = Vector2.Distance(playerPos, enemy.Position);
                     if (dist <= autoAimRadius && dist < closestDist)
                     {
                         closestDist = dist;

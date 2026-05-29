@@ -37,13 +37,13 @@ namespace _Project.Scripts.ECS.Systems
                 }
 
                 // 2. Вычисляем направление броска на основе вектора прицеливания джойстика
-                float3 throwDir = new float3(request.ValueRO.AimDirection.x, request.ValueRO.AimDirection.y, 0);
+                var throwDir = new float3(request.ValueRO.AimDirection.x, request.ValueRO.AimDirection.y, 0);
                 
                 // Защита от броска "под себя", если джойстик вернул нулевой вектор
                 if (math.lengthsq(throwDir) < 0.01f) throwDir = new float3(0, 1, 0);
                 
                 // УБРАЛИ ХАРДКОД: Дистанция броска теперь динамически берется из ScriptableObject (через конфиг)
-                float3 targetPosition = transform.ValueRO.Position + (math.normalize(throwDir) * config.ValueRO.CastDistance);
+                var targetPosition = transform.ValueRO.Position + (math.normalize(throwDir) * config.ValueRO.CastDistance);
 
                 // 3. Добавляем команду спавна турели прямо на сущность этого игрока
                 ecb.AddComponent(entity, new SpawnTurretCommand

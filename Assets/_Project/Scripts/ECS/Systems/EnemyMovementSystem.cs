@@ -25,6 +25,10 @@ namespace _Project.Scripts.ECS.Systems
             var targetPriorities = targetQuery.ToComponentDataArray<TargetableComponent>(Allocator.TempJob);
             var tauntLookup = SystemAPI.GetComponentLookup<TauntComponent>(true);
 
+            // ДОБАВЛЕНО: Считываем массивы дебаффов для передачи в Job
+            var apathyLookup = SystemAPI.GetComponentLookup<ApathyDebuffComponent>(true);
+            var slowLookup = SystemAPI.GetComponentLookup<FrostSlowComponent>(true);
+
             var movementJob = new EnemyMovementJob
             {
                 DeltaTime = deltaTime,
@@ -32,7 +36,9 @@ namespace _Project.Scripts.ECS.Systems
                 Targets = targets,
                 TargetTransforms = targetTransforms,
                 TargetPriorities = targetPriorities,
-                TauntLookup = tauntLookup
+                TauntLookup = tauntLookup,
+                ApathyLookup = apathyLookup,
+                SlowLookup = slowLookup
             };
 
             state.Dependency = movementJob.ScheduleParallel(state.Dependency);
@@ -58,26 +64,38 @@ namespace _Project.Scripts.ECS.Systems
         [ReadOnly] public NativeArray<TargetableComponent> TargetPriorities;
         [ReadOnly] public ComponentLookup<TauntComponent> TauntLookup;
 
+        // ДОБАВЛЕНО: Lookup-таблицы для проверки дебаффов на конкретном враге
+        [ReadOnly] public ComponentLookup<ApathyDebuffComponent> ApathyLookup;
+        [ReadOnly] public ComponentLookup<FrostSlowComponent> SlowLookup;
+
         public void Execute(Entity entity, [ChunkIndexInQuery] int chunkIndex, ref LocalTransform transform, in EnemyMovementComponent movement, in EnemyTagComponent enemyTag)
         {
-            float3 enemyPos = transform.Position;
-            Entity bestTarget = Entity.Null;
-            float3 bestTargetPos = float3.zero;
-            float maxPriority = -1f;
-            float minDistance = 20f; 
+            // --- 1. ПРОВЕРКА НА ЗАМОРОЗКУ (АПАТИЯ) ---
+            if (ApathyLookup.HasComponent(entity))
+            {
+                if (ApathyLookup[entity].FreezeTimer > 0f)
+                {
+                    // Враг во льду! Пропускаем логику поиска, движения и атаки.
+                    return;
+                }
+            }
+
+            var enemyPos = transform.Position;
+            var bestTarget = Entity.Null;
+            var bestTargetPos = float3.zero;
+            var maxPriority = -1f;
+            var minDistance = 20f; 
 
             // 1. ПОИСК ЛУЧШЕЙ ЦЕЛИ
-            for (int i = 0; i < Targets.Length; i++)
+            for (var i = 0; i < Targets.Length; i++)
             {
-                float currentPriority = TargetPriorities[i].Priority;
+                var currentPriority = TargetPriorities[i].Priority;
 
-                // АБСОЛЮТНЫЙ ИНВИЗ: Если приоритет цели равен 0 (или сброшен инвизом),
-                // вражеский ИИ полностью слепнет к этой сущности и идет мимо!
                 if (currentPriority <= 0.001f) continue;
 
-                float3 targetPos = TargetTransforms[i].Position;
-                float dist = math.distance(enemyPos, targetPos);
-                float allowedAgroRange = 20f; 
+                var targetPos = TargetTransforms[i].Position;
+                var dist = math.distance(enemyPos, targetPos);
+                var allowedAgroRange = 20f; 
 
                 if (currentPriority > 1.0f && TauntLookup.HasComponent(Targets[i]))
                 {
@@ -86,7 +104,7 @@ namespace _Project.Scripts.ECS.Systems
 
                 if (dist < allowedAgroRange) 
                 {
-                    bool isBetterTarget = false;
+                    var isBetterTarget = false;
 
                     if (currentPriority > maxPriority)
                     {
@@ -109,19 +127,30 @@ namespace _Project.Scripts.ECS.Systems
 
             if (bestTarget == Entity.Null) return;
 
-            // 2. ДВИЖЕНИЕ И АТАКА
+            // --- 2. РАСЧЕТ ДВИЖЕНИЯ С УЧЕТОМ ЗАМЕДЛЕНИЯ ---
+            var currentSpeed = movement.Speed;
+            if (SlowLookup.HasComponent(entity))
+            {
+                currentSpeed *= SlowLookup[entity].SpeedMultiplier;
+            }
+
             var direction = bestTargetPos - enemyPos;
             var distance = math.length(direction);
 
+            // 3. ДВИЖЕНИЕ И АТАКА
             if (distance < 0.8f) 
             {
-                Ecb.AddComponent(chunkIndex, bestTarget, new TakeDamageComponent { Amount = 10f });
+                // ИСПРАВЛЕНО: Передаем свою сущность (entity) как источник урона
+                Ecb.AddComponent(chunkIndex, bestTarget, new TakeDamageComponent { 
+                    Amount = 10f, 
+                    SourceEntity = entity 
+                });
                 Ecb.DestroyEntity(chunkIndex, entity); 
             }
             else
             {
                 direction = math.normalize(direction);
-                transform.Position += direction * movement.Speed * DeltaTime;
+                transform.Position += direction * currentSpeed * DeltaTime;
             }
         }
     }

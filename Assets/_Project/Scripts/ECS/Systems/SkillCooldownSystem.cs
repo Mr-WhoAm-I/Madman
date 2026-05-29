@@ -12,7 +12,7 @@ namespace _Project.Scripts.ECS.Systems
             if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
                 return;
 
-            float deltaTime = timeComponent.DeltaTime;
+            var deltaTime = timeComponent.DeltaTime;
 
             foreach (var (skillState, bridgeRef) in SystemAPI.Query<RefRW<SkillStateComponent>, PlayerBridgeReference>())
             {

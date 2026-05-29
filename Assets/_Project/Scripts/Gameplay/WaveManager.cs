@@ -114,7 +114,7 @@ namespace _Project.Scripts.Gameplay
 
             if (prefabEntity == Entity.Null) yield break;
 
-            if (!SpawnZone.AllZones.TryGetValue(batch.spawnZoneID, out SpawnZone zone)) yield break;
+            if (!SpawnZone.AllZones.TryGetValue(batch.spawnZoneID, out var zone)) yield break;
 
             while (spawnedCount < batch.totalAmount)
             {

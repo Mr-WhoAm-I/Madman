@@ -15,8 +15,8 @@ namespace _Project.Scripts.Network
         [Header("Экипированное оружие")]
         public WeaponData[] equippedWeapons = new WeaponData[2]; //
 
-        [Networked] private TickTimer Timer0 { get; set; } //[cite: 7]
-        [Networked] private TickTimer Timer1 { get; set; } //[cite: 7]
+        [Networked] private TickTimer Timer0 { get; set; }
+        [Networked] private TickTimer Timer1 { get; set; }
         
         private EntityQuery _enemyQuery;
         private PlayerManager _playerManager;
@@ -24,43 +24,43 @@ namespace _Project.Scripts.Network
 
         public override void Spawned()
         {
-            _playerManager = GetComponent<PlayerManager>(); //[cite: 7]
+            _playerManager = GetComponent<PlayerManager>();
 
-            if (!HasStateAuthority) return; //[cite: 7]
-            _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform)); //[cite: 7]
+            if (!HasStateAuthority) return;
+            _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform));
                 
             // Проверяем, кто мы — игрок или клон
             _isClone = GetComponent<CloneNetworkBridge>() != null;
 
-            ValidateWeapons(); //[cite: 7]
+            ValidateWeapons();
         }
 
         public void ValidateWeapons()
         {
-            if (_playerManager == null || _playerManager.currentArchetype == null) return; //[cite: 7]
+            if (_playerManager == null || _playerManager.currentArchetype == null) return;
 
-            var allowedSlots = _playerManager.currentArchetype.weaponSlotsCount; //[cite: 7]
-            var allowedCategory = _playerManager.currentArchetype.allowedWeaponCategory; //[cite: 7]
+            var allowedSlots = _playerManager.currentArchetype.weaponSlotsCount;
+            var allowedCategory = _playerManager.currentArchetype.allowedWeaponCategory;
 
-            for (var i = 0; i < equippedWeapons.Length; i++) //[cite: 7]
+            for (var i = 0; i < equippedWeapons.Length; i++)
             {
-                if (equippedWeapons[i] == null) continue; //[cite: 7]
-                if (i >= allowedSlots) //[cite: 7]
+                if (equippedWeapons[i] == null) continue;
+                if (i >= allowedSlots)
                 {
-                    Debug.LogWarning($"[Сервер] Слот {i + 1} заблокирован. Оружие изъято."); //[cite: 7]
-                    equippedWeapons[i] = null; //[cite: 7]
+                    Debug.LogWarning($"[Сервер] Слот {i + 1} заблокирован. Оружие изъято.");
+                    equippedWeapons[i] = null;
                 }
-                else if (equippedWeapons[i].category != allowedCategory) //[cite: 7]
+                else if (equippedWeapons[i].category != allowedCategory)
                 {
-                    Debug.LogWarning($"[Сервер] Оружие изъято из-за несоответствия категории."); //[cite: 7]
-                    equippedWeapons[i] = null; //[cite: 7]
+                    Debug.LogWarning($"[Сервер] Оружие изъято из-за несоответствия категории.");
+                    equippedWeapons[i] = null;
                 }
             }
         }
 
         public override void FixedUpdateNetwork()
         {
-            if (GetComponent<Health>().IsDead) return; //[cite: 7]
+            if (GetComponent<Health>().IsDead) return;
 
             // Клон не обрабатывает ECS-ульты Истерика и не блокирует сам себя в инвизе
             if (!_isClone)
@@ -82,7 +82,7 @@ namespace _Project.Scripts.Network
                     {
                         if (HasStateAuthority)
                         {
-                            int bulletsToShoot = 8; 
+                            var bulletsToShoot = 8; 
                             var archetypeData = ProfileController.Instance.GetArchetypeAsset(bridge.NetworkArchetypeID);
                             if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
                             {
@@ -96,28 +96,28 @@ namespace _Project.Scripts.Network
                 }
             }
 
-            if (!HasStateAuthority) return; //[cite: 7]
+            if (!HasStateAuthority) return;
 
             // ЕДИНЫЙ ЦИКЛ СТРЕЛЬБЫ (Работает и для игрока, и для полноценного оружия клона)
-            if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner)) //[cite: 7]
+            if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner))
             {
-                FireWeapon(equippedWeapons[0], 0); //[cite: 7]
-                Timer0 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[0].fireRate); //[cite: 7]
+                FireWeapon(equippedWeapons[0], 0);
+                Timer0 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[0].fireRate);
             }
 
-            if (equippedWeapons.Length <= 1 || equippedWeapons[1] == null || !Timer1.ExpiredOrNotRunning(Runner)) return; //[cite: 7]
+            if (equippedWeapons.Length <= 1 || equippedWeapons[1] == null || !Timer1.ExpiredOrNotRunning(Runner)) return;
             
-            FireWeapon(equippedWeapons[1], 1); //[cite: 7]
-            Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate); //[cite: 7]
+            FireWeapon(equippedWeapons[1], 1);
+            Timer1 = TickTimer.CreateFromSeconds(Runner, equippedWeapons[1].fireRate);
         }
 
-        private void FireWeapon(WeaponData weapon, int slotIndex) //[cite: 7]
+        private void FireWeapon(WeaponData weapon, int slotIndex)
         {
-            var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp); //[cite: 7]
+            var enemyTransforms = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
             
-            if (enemyTransforms.Length == 0) //[cite: 7]
+            if (enemyTransforms.Length == 0)
             {
-                enemyTransforms.Dispose(); //[cite: 7]
+                enemyTransforms.Dispose();
                 return; 
             }
 
@@ -125,25 +125,25 @@ namespace _Project.Scripts.Network
             var nearestDistSq = float.MaxValue;
             var nearestEnemyPos = float3.zero;
 
-            for (var i = 0; i < enemyTransforms.Length; i++) //[cite: 7]
+            for (var i = 0; i < enemyTransforms.Length; i++)
             {
-                var distSq = math.distancesq(shooterPos, enemyTransforms[i].Position); //[cite: 7]
-                if (!(distSq < nearestDistSq)) continue; //[cite: 7]
-                nearestDistSq = distSq; //[cite: 7]
-                nearestEnemyPos = enemyTransforms[i].Position; //[cite: 7]
+                var distSq = math.distancesq(shooterPos, enemyTransforms[i].Position);
+                if (!(distSq < nearestDistSq)) continue;
+                nearestDistSq = distSq;
+                nearestEnemyPos = enemyTransforms[i].Position;
             }
-            enemyTransforms.Dispose(); //[cite: 7]
+            enemyTransforms.Dispose();
 
-            var direction = ((Vector3)nearestEnemyPos - transform.position).normalized; //[cite: 7]
-            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f; //[cite: 7]
-            var baseRotation = Quaternion.Euler(0, 0, angle); //[cite: 7]
+            var direction = ((Vector3)nearestEnemyPos - transform.position).normalized;
+            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
+            var baseRotation = Quaternion.Euler(0, 0, angle);
 
-            var rightDirection = Vector3.Cross(direction, Vector3.forward); //[cite: 7]
-            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f); //[cite: 7]
-            var finalSpawnPos = transform.position + spawnOffset; //[cite: 7]
+            var rightDirection = Vector3.Cross(direction, Vector3.forward);
+            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
+            var finalSpawnPos = transform.position + spawnOffset;
 
             // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
-            float calculatedDamage = weapon.damage;
+            var calculatedDamage = weapon.damage;
 
             if (_isClone)
             {
@@ -173,7 +173,7 @@ namespace _Project.Scripts.Network
 
                         if (instability.CurrentStacks > 0)
                         {
-                            float multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
+                            var multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
                             calculatedDamage *= multiplier;
 
                             Debug.Log($"<color=#00FFCC>[КВАНТОВАЯ НЕСТАБИЛЬНОСТЬ]</color> Игрок выстрелил! Стаки: {instability.CurrentStacks}. Урон: {weapon.damage} -> {calculatedDamage}");
@@ -187,40 +187,44 @@ namespace _Project.Scripts.Network
             }
 
             // Спавним столько дробинок/снарядов, сколько прописано в WeaponData полноценного ствола!
-            for (var p = 0; p < weapon.pelletCount; p++) //[cite: 7]
+            for (var p = 0; p < weapon.pelletCount; p++)
             {
-                var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle); //[cite: 7]
-                var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread); //[cite: 7]
+                var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
+                var finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
-                Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) => //[cite: 7]
+                Runner.Spawn(weapon.bulletPrefab, finalSpawnPos, finalRotation, Object.InputAuthority, (runner, obj) =>
                 {
-                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>(); //[cite: 7]
-                    if (bulletMovement != null) //[cite: 7]
+                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
+                    if (bulletMovement != null)
                     {
                         // Сюда улетает честно пересчитанный урон (либо уменьшенный для клона, либо увеличенный для игрока)
-                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, calculatedDamage, weapon.bulletSpeed); //[cite: 7]
+                        var bridge = GetComponent<PlayerNetworkBridge>();
+                        var shooterEntity = bridge != null ? bridge.PlayerEntity : Entity.Null;
+                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, calculatedDamage, weapon.bulletSpeed, shooterEntity);
                     }
                 });
             }
         }
 
-        public void ShootTornado360(int bulletCount) //[cite: 7]
+        public void ShootTornado360(int bulletCount)
         {
-            if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return; //[cite: 7]
-            var weapon = equippedWeapons[0]; //[cite: 7]
+            if (equippedWeapons.Length == 0 || equippedWeapons[0] == null) return;
+            var weapon = equippedWeapons[0];
             
-            float angleStep = 360f / bulletCount; //[cite: 7]
+            var angleStep = 360f / bulletCount;
             
-            for (int i = 0; i < bulletCount; i++) //[cite: 7]
+            for (var i = 0; i < bulletCount; i++)
             {
-                Quaternion rotation = Quaternion.Euler(0, 0, i * angleStep); //[cite: 7]
+                var rotation = Quaternion.Euler(0, 0, i * angleStep);
                 
-                Runner.Spawn(weapon.bulletPrefab, transform.position, rotation, Object.InputAuthority, (runner, obj) => //[cite: 7]
+                Runner.Spawn(weapon.bulletPrefab, transform.position, rotation, Object.InputAuthority, (runner, obj) =>
                 {
-                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>(); //[cite: 7]
-                    if (bulletMovement != null) //[cite: 7]
+                    var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
+                    if (bulletMovement != null)
                     {
-                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed); //[cite: 7]
+                        var bridge = GetComponent<PlayerNetworkBridge>();
+                        var shooterEntity = bridge != null ? bridge.PlayerEntity : Entity.Null;
+                        bulletMovement.InitNetworkState(weapon.bulletLifeTime, weapon.damage, weapon.bulletSpeed, shooterEntity);
                     }
                 });
             }

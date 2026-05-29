@@ -156,10 +156,10 @@ namespace _Project.Scripts.Network
                     
                     if (archetypeData != null && archetypeData.activeSkillData is TurretSkillData turretSkill)
                     {
-                        int activeCount = 0;
+                        var activeCount = 0;
                         TurretNetworkBridge oldestTurret = null;
                         
-                        for (int i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
+                        for (var i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
                         {
                             if (TurretNetworkBridge.ActiveTurrets[i].OwnerPlayer == Object.InputAuthority)
                             {
@@ -216,6 +216,39 @@ namespace _Project.Scripts.Network
 
                 _entityManager.RemoveComponent<SpawnCloneCommand>(_playerEntity);
             }
+            
+            // =========================================================================
+            // СЕТЕВАЯ ФАБРИКА: ОБРАБОТКА КОМАНДЫ НА СПАВН УЛЬТЫ МЕЛАНХОЛИКА
+            // =========================================================================
+            if (_entityManager.HasComponent<SpawnIceProjectileCommand>(_playerEntity))
+            {
+                if (HasStateAuthority)
+                {
+                    var command = _entityManager.GetComponentData<SpawnIceProjectileCommand>(_playerEntity);
+                    var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
+
+                    if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicSkill)
+                    {
+                        // Разворачиваем снаряд по вектору джойстика
+                        float angle = Mathf.Atan2(command.CastDirection.y, command.CastDirection.x) * Mathf.Rad2Deg - 90f;
+                        Quaternion rotation = Quaternion.Euler(0, 0, angle);
+
+                        // Спавним с небольшим смещением вперед, чтобы не задеть самого себя
+                        Vector3 spawnPos = transform.position + new Vector3(command.CastDirection.x, command.CastDirection.y, 0f) * 0.5f;
+
+                        Runner.Spawn(melancholicSkill.iceProjectilePrefab, spawnPos, rotation, Object.InputAuthority, (runner, obj) =>
+                        {
+                            var iceBridge = obj.GetComponent<IceProjectileNetworkBridge>();
+                            if (iceBridge != null)
+                            {
+                                iceBridge.Initialize(Object.InputAuthority, melancholicSkill, command.CastDirection, _playerEntity);
+                            }
+                        });
+                    }
+                }
+
+                _entityManager.RemoveComponent<SpawnIceProjectileCommand>(_playerEntity);
+            }
 
             // =========================================================================
             // СБОР КООРДИНАТ И ИНПУТА В ECS
@@ -265,10 +298,10 @@ namespace _Project.Scripts.Network
             _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
 
             var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
-            float skillCooldown = 5f;
-            int maxCharges = 1;
-            float castDist = 4f;
-            float effectRad = 5f;
+            var skillCooldown = 5f;
+            var maxCharges = 1;
+            var castDist = 4f;
+            var effectRad = 5f;
 
             if (archetypeData != null && archetypeData.activeSkillData != null) 
             {
@@ -298,15 +331,23 @@ namespace _Project.Scripts.Network
                 _entityManager.AddComponent<SkillConfigComponent>(_playerEntity);
                 
             // Сборка динамических параметров под конкретные классы
-            float dashSpd = 0f;
-            float dashDur = 0f;
+            var dashSpd = 0f;
+            var dashDur = 0f;
             
-            float instabilityTime = 1f;
-            int instabilityMax = 4;
-            float instabilityDmg = 0.2f;
-            float invisDuration = 4f;
-            float cloneExplosionDmg = 150f;
-            float cloneExplosionRad = 3f;
+            // Параметры шизоида 
+            var instabilityTime = 1f;
+            var instabilityMax = 4;
+            var instabilityDmg = 0.2f;
+            var invisDuration = 4f;
+            var cloneExplosionDmg = 150f;
+            var cloneExplosionRad = 3f;
+            
+            // Параметры Меланхолика 
+            var frostSlow = 1f;
+            var apathyMax = 3;
+            var freezeDur = 2f;
+            var chainTargets = 3;
+            var chainDmg = 150f;
 
             if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericData)
             {
@@ -322,6 +363,15 @@ namespace _Project.Scripts.Network
                 cloneExplosionDmg = schizoidData.cloneExplosionDamage;
                 cloneExplosionRad = schizoidData.cloneExplosionRadius;
             }
+            else if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicData)
+            {
+                // Переводим 0.2f (20% замедления) в множитель скорости 0.8f
+                frostSlow = 1.0f - melancholicData.slowPercentage; 
+                apathyMax = melancholicData.apathyStacksToFreeze;
+                freezeDur = melancholicData.freezeDuration;
+                chainTargets = melancholicData.chainTargetsCount;
+                chainDmg = melancholicData.chainExplosionDamage;
+            }
                 
             _entityManager.SetComponentData(_playerEntity, new SkillConfigComponent
             {
@@ -330,13 +380,20 @@ namespace _Project.Scripts.Network
                 DashSpeed = dashSpd,
                 DashDuration = dashDur,
                 
-                // Наполнение конфига Шизоида (Добавлено)
+                // Наполнение конфига Шизоида
                 InstabilityTimePerStack = instabilityTime,
                 InstabilityMaxStacks = instabilityMax,
                 InstabilityDamagePerStack = instabilityDmg,
                 InvisibilityDuration = invisDuration,
                 CloneExplosionDamage = cloneExplosionDmg,
-                CloneExplosionRadius = cloneExplosionRad
+                CloneExplosionRadius = cloneExplosionRad,
+                
+                // Наполнение конфига Меланхолика
+                FrostSlowMultiplier = frostSlow,
+                ApathyMaxStacks = apathyMax,
+                FreezeDuration = freezeDur,
+                ChainTargetsCount = chainTargets,
+                ChainExplosionDamage = chainDmg
             });
 
             _entityManager.RemoveComponent<HystericTag>(_playerEntity);
@@ -360,12 +417,11 @@ namespace _Project.Scripts.Network
                     break;
                 case 2: 
                     _entityManager.AddComponent<SchizoidTag>(_playerEntity);
-                    // ИСПРАВЛЕНО: Даем Шизоиду структуру для обсчета Квантовой нестабильности
                     _entityManager.AddComponentData(_playerEntity, new QuantumInstabilityComponent
                     {
                         CurrentStacks = 0,
                         Timer = 0f,
-                        TimeSinceLastDamage = 10f // Изначально урона не было давно
+                        TimeSinceLastDamage = 10f
                     });
                     break;
                 case 3: 
@@ -412,14 +468,14 @@ namespace _Project.Scripts.Network
             if (_entityManager.Exists(_playerEntity) && _entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
             {
                 // Если невидим — делаем спрайт полупрозрачным (альфа 0.3f)
-                Color c = _spriteRenderer.color;
+                var c = _spriteRenderer.color;
                 c.a = 0.3f;
                 _spriteRenderer.color = c;
             }
             else
             {
                 // Когда инвиз спал — возвращаем полную видимость
-                Color c = _spriteRenderer.color;
+                var c = _spriteRenderer.color;
                 c.a = 1.0f;
                 _spriteRenderer.color = c;
             }

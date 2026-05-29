@@ -12,7 +12,7 @@ namespace _Project.Scripts.ECS.Systems
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            float deltaTime = SystemAPI.Time.DeltaTime;
+            var deltaTime = SystemAPI.Time.DeltaTime;
 
             // Ищем всех, у кого есть таймер мигания и цвет
             foreach (var (flash, color) in SystemAPI.Query<RefRW<DamageFlashComponent>, RefRW<URPMaterialPropertyBaseColor>>())

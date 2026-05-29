@@ -11,7 +11,7 @@ namespace _Project.Scripts.ECS.Systems
             if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
                 return;
 
-            float deltaTime = timeComponent.DeltaTime;
+            var deltaTime = timeComponent.DeltaTime;
 
             foreach (var (instability, config, bridgeRef, entity) in 
                      SystemAPI.Query<RefRW<QuantumInstabilityComponent>, RefRO<SkillConfigComponent>, PlayerBridgeReference>().WithEntityAccess())
@@ -23,8 +23,8 @@ namespace _Project.Scripts.ECS.Systems
                 instability.ValueRW.TimeSinceLastDamage += deltaTime;
 
                 // Проверяем условия для накопления стаков: игрок либо невидим, либо не получал урон более 2 секунд
-                bool isEntityInvisible = SystemAPI.HasComponent<InvisibilityStateComponent>(entity);
-                bool isSafeFromDamage = instability.ValueRO.TimeSinceLastDamage >= 2.0f;
+                var isEntityInvisible = SystemAPI.HasComponent<InvisibilityStateComponent>(entity);
+                var isSafeFromDamage = instability.ValueRO.TimeSinceLastDamage >= 2.0f;
 
                 if (isEntityInvisible || isSafeFromDamage)
                 {

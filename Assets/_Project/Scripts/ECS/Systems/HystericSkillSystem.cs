@@ -15,7 +15,7 @@ namespace _Project.Scripts.ECS.Systems
             if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
                 return;
 
-            float deltaTime = timeComponent.DeltaTime;
+            var deltaTime = timeComponent.DeltaTime;
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             foreach (var (skillState, request, config, input, bridgeRef, entity) in 
@@ -31,7 +31,7 @@ namespace _Project.Scripts.ECS.Systems
                     skillState.ValueRW.CurrentCooldown = skillState.ValueRO.MaxCooldown;
                 }
 
-                float2 dashDir = request.ValueRO.AimDirection;
+                var dashDir = request.ValueRO.AimDirection;
                 
                 if (math.lengthsq(dashDir) < 0.01f) dashDir = input.ValueRO.MovementInput;
                 if (math.lengthsq(dashDir) < 0.01f) dashDir = new float2(1, 0); 

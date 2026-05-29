@@ -20,8 +20,8 @@ namespace _Project.Scripts.ECS.Systems
                 // Системы ввода должны работать на каждом тике, так как инпут Fusion идеально откатывается в прошлое!
                 var currentInput = input.ValueRO;
                 
-                bool isSkillButtonPressed = currentInput.Buttons.IsSet(PlayerInputButtons.Skill) && 
-                                            !currentInput.PreviousButtons.IsSet(PlayerInputButtons.Skill);
+                var isSkillButtonPressed = currentInput.Buttons.IsSet(PlayerInputButtons.Skill) && 
+                                           !currentInput.PreviousButtons.IsSet(PlayerInputButtons.Skill);
 
                 if (isSkillButtonPressed && skillState.ValueRO.IsReady)
                 {

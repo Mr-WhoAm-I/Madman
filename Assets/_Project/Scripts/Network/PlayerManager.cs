@@ -50,7 +50,7 @@ namespace _Project.Scripts.Network
             if (health != null)
             {
                 // ФОРМУЛА ПРОГРЕССИИ: Базовое ХП + (Уровень * Бонус)
-                float calculatedHealth = currentArchetype.maxHealth + (level * 10f);
+                var calculatedHealth = currentArchetype.maxHealth + (level * 10f);
                 health.MaxHealth = calculatedHealth;
                 health.CurrentHealth = calculatedHealth;
             }

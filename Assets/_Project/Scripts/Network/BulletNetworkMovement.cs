@@ -1,6 +1,7 @@
 using Fusion;
 using UnityEngine;
 using System.Collections.Generic;
+using Unity.Entities; // ДОБАВЛЕНО для работы с Entity
 
 namespace _Project.Scripts.Network
 {
@@ -9,24 +10,25 @@ namespace _Project.Scripts.Network
         public float speed = 10f;
         public float damage = 25f;
         
-        // 1. Статический список всех активных пуль на сцене
-        public static readonly List<BulletNetworkMovement> ActiveBullets = new();
+        // ДОБАВЛЕНО: Ссылка на ECS-сущность стрелка (Игрока или Клона)
+        public Entity SourceEntity; 
         
-        // 2. Флаг, чтобы одна пуля не убила двоих врагов за один кадр
+        public static readonly List<BulletNetworkMovement> ActiveBullets = new();
         public bool isHit; 
         
         [Networked] private TickTimer LifeTimer { get; set; }
 
-        public void InitNetworkState(float lifeTime, float newDamage, float newSpeed)
+        // ИСПРАВЛЕНО: Добавлен параметр sourceEntity
+        public void InitNetworkState(float lifeTime, float newDamage, float newSpeed, Entity sourceEntity)
         {
             LifeTimer = TickTimer.CreateFromSeconds(Runner, lifeTime);
             damage = newDamage;
             speed = newSpeed;
+            SourceEntity = sourceEntity; // Запоминаем автора
         }
         
         public override void Spawned()
         {
-            // Добавляем пулю в реестр, когда она появляется
             ActiveBullets.Add(this);
 
             if (HasStateAuthority)
@@ -37,7 +39,6 @@ namespace _Project.Scripts.Network
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
-            // Удаляем пулю из реестра перед ее уничтожением
             ActiveBullets.Remove(this);
         }
 
@@ -51,7 +52,6 @@ namespace _Project.Scripts.Network
             }
         }
 
-        // Оставляем этот метод как есть! Он все еще нужен для попаданий по другим ИГРОКАМ
         private void OnTriggerEnter2D(Collider2D other)
         {
             if (!HasStateAuthority) return;

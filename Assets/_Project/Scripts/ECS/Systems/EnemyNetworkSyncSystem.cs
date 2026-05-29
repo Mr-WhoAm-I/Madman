@@ -24,7 +24,7 @@ namespace _Project.Scripts.ECS.Systems
             // ---------------------------------------------------------
             if (swarmManager.HasStateAuthority)
             {
-                int index = 0;
+                var index = 0;
                 
                 foreach (var (transform, health) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<EnemyHealthComponent>>())
                 {
@@ -51,7 +51,7 @@ namespace _Project.Scripts.ECS.Systems
             // ---------------------------------------------------------
             else
             {
-                int count = 0;
+                var count = 0;
                 // Считаем сколько врагов (кукол) уже есть в памяти клиента
                 foreach (var _ in SystemAPI.Query<RefRO<EnemyTagComponent>>()) 
                     count++;

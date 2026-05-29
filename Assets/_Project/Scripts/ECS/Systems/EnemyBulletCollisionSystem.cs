@@ -6,14 +6,15 @@ using _Project.Scripts.Network;
 
 namespace _Project.Scripts.ECS.Systems
 {
+    [UpdateInGroup(typeof(FusionUpdateGroup))]
     public partial struct EnemyBulletCollisionSystem : ISystem
     {
         public void OnUpdate(ref SystemState state)
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // Обрати внимание: мы добавили RefRW для Health и Flash
-            foreach (var (transform, health, flash, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRW<EnemyHealthComponent>, RefRW<DamageFlashComponent>>().WithEntityAccess().WithAll<EnemyTagComponent>())
+            // ИСПРАВЛЕНО: Нам больше не нужно запрашивать Health и Flash. Мы только читаем координаты.
+            foreach (var (transform, entity) in SystemAPI.Query<RefRO<LocalTransform>>().WithEntityAccess().WithAll<EnemyTagComponent>())
             {
                 for (var i = BulletNetworkMovement.ActiveBullets.Count - 1; i >= 0; i--)
                 {
@@ -23,21 +24,17 @@ namespace _Project.Scripts.ECS.Systems
                     var distance = math.distance(transform.ValueRO.Position, bullet.transform.position);
 
                     if (!(distance < 0.5f)) continue;
-                    // 1. Отнимаем здоровье
-                    health.ValueRW.CurrentHealth -= bullet.damage;
+                    
+                    // AAA-СТАНДАРТ: Мы не трогаем здоровье напрямую! Мы просто вешаем "запрос на урон"
+                    // Твоя система DamageSystem (которая обрабатывает взрывы и атаки мобов) сама снимет ХП и убьет врага.
+                    ecb.AddComponent(entity, new TakeDamageComponent { 
+                        Amount = bullet.damage,
+                        SourceEntity = bullet.SourceEntity // Передаем автора пули!
+                    });
+
                     bullet.isHit = true;
                         
                     if (bullet.HasStateAuthority) bullet.Runner.Despawn(bullet.Object);
-
-                    // 2. Проверяем, жив ли враг
-                    if (health.ValueRO.CurrentHealth <= 0)
-                    {
-                        ecb.DestroyEntity(entity); // Убиваем
-                    }
-                    else
-                    {
-                        flash.ValueRW.Timer = 0.1f; // Включаем таймер мигания на 0.1 сек
-                    }
 
                     break;
                 }

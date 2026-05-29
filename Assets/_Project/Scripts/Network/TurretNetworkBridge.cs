@@ -54,7 +54,7 @@ namespace _Project.Scripts.Network
 
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
             
-            float initialPriority = IsTaunting ? 5.0f : 1.0f;
+            var initialPriority = IsTaunting ? 5.0f : 1.0f;
             _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = initialPriority });
 
             _entityManager.AddComponentData(_turretEntity, new HealthLinkComponent { Value = _healthComponent });
@@ -65,8 +65,8 @@ namespace _Project.Scripts.Network
             if (HasStateAuthority)
             {
                 // 1. АВТОР СЕРВЕРНАЯ ПРОВЕРКА ВЛАДЕЛЬЦА
-                bool isOwnerAlive = false;
-                for (int i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
+                var isOwnerAlive = false;
+                for (var i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
                 {
                     var p = PlayerManager.AllActivePlayers[i];
                     if (p != null && p.Object != null && p.Object.InputAuthority == OwnerPlayer)
@@ -96,12 +96,12 @@ namespace _Project.Scripts.Network
             
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
 
-            float currentPriority = IsTaunting ? 5.0f : 1.0f;
+            var currentPriority = IsTaunting ? 5.0f : 1.0f;
             _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = currentPriority });
 
             // ИСПРАВЛЕНО: Записываем актуальный динамический радиус таунта. 
             // Если турель оттаунтила, её радиус падает в 0, чтобы мобы переключились обратно на игроков.
-            float currentRadius = IsTaunting ? (_skillData != null ? _skillData.effectRadius : 10f) : 0f;
+            var currentRadius = IsTaunting ? (_skillData != null ? _skillData.effectRadius : 10f) : 0f;
             _entityManager.SetComponentData(_turretEntity, new TauntComponent 
             { 
                 Radius = currentRadius, 
@@ -132,15 +132,15 @@ namespace _Project.Scripts.Network
             if (swarmManager == null || swarmManager.Object == null) return Vector2.zero;
 
             Vector2 myPos = transform.position;
-            Vector2 MyClosestDir = Vector2.zero;
-            float closestDist = float.MaxValue;
+            var MyClosestDir = Vector2.zero;
+            var closestDist = float.MaxValue;
 
-            for (int i = 0; i < swarmManager.EnemyStates.Length; i++)
+            for (var i = 0; i < swarmManager.EnemyStates.Length; i++)
             {
                 var enemy = swarmManager.EnemyStates[i];
                 if (!enemy.IsActive) continue;
 
-                float dist = Vector2.Distance(myPos, enemy.Position);
+                var dist = Vector2.Distance(myPos, enemy.Position);
                 if (dist <= _skillData.attackRadius && dist < closestDist)
                 {
                     closestDist = dist;

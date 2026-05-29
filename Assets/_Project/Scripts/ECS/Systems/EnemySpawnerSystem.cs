@@ -13,7 +13,7 @@ namespace _Project.Scripts.ECS.Systems
         public void OnUpdate(ref SystemState state)
         {
             // Получаем текущее время игры
-            double currentTime = SystemAPI.Time.ElapsedTime;
+            var currentTime = SystemAPI.Time.ElapsedTime;
 
             // Ищем все спавнеры на сцене
             foreach (var (spawner, transform) in SystemAPI.Query<RefRW<EnemySpawnerComponent>, RefRO<LocalTransform>>())
@@ -22,12 +22,12 @@ namespace _Project.Scripts.ECS.Systems
                 if (currentTime >= spawner.ValueRO.NextSpawnTime)
                 {
                     // Мгновенно клонируем Entity в памяти
-                    Entity newEnemy = state.EntityManager.Instantiate(spawner.ValueRO.EnemyPrefab);
+                    var newEnemy = state.EntityManager.Instantiate(spawner.ValueRO.EnemyPrefab);
                     
                     // Генерируем случайную позицию в радиусе 5 юнитов от спавнера
-                    uint randomSeed = (uint)(currentTime * 10000) + 1; // Уникальный сид (seed)
+                    var randomSeed = (uint)(currentTime * 10000) + 1; // Уникальный сид (seed)
                     var random = new Random(randomSeed);
-                    float3 randomOffset = new float3(random.NextFloat(-5f, 5f), random.NextFloat(-5f, 5f), 0);
+                    var randomOffset = new float3(random.NextFloat(-5f, 5f), random.NextFloat(-5f, 5f), 0);
                     
                     // Перемещаем нового врага в эту точку
                     state.EntityManager.SetComponentData(newEnemy, LocalTransform.FromPosition(transform.ValueRO.Position + randomOffset));

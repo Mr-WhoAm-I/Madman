@@ -35,7 +35,7 @@ namespace _Project.Scripts.ECS.Systems
                 });
 
                 // ИСПРАВЛЕНО: Рассчитываем вектор направления на основе инпута джойстика
-                float2 aimDir = request.ValueRO.AimDirection;
+                var aimDir = request.ValueRO.AimDirection;
                 
                 // Защита: если джойстик в нейтральном положении, клон побежит строго вверх
                 if (math.lengthsq(aimDir) < 0.01f) aimDir = new float2(0f, 1f);
@@ -53,7 +53,7 @@ namespace _Project.Scripts.ECS.Systems
 
             if (SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
             {
-                float deltaTime = timeComponent.DeltaTime;
+                var deltaTime = timeComponent.DeltaTime;
 
                 foreach (var (invis, bridgeRef, entity) in SystemAPI.Query<RefRW<InvisibilityStateComponent>, PlayerBridgeReference>().WithEntityAccess())
                 {

@@ -44,8 +44,8 @@ namespace _Project.Scripts.Network
             _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
             _healthComponent = GetComponent<Health>();
 
-            float radius = _skillData != null ? _skillData.effectRadius : 6f;
-            float duration = _skillData != null ? _skillData.cloneDuration : 4f;
+            var radius = _skillData != null ? _skillData.effectRadius : 6f;
+            var duration = _skillData != null ? _skillData.cloneDuration : 4f;
 
             if (HasStateAuthority && _skillData != null)
             {
@@ -86,7 +86,7 @@ namespace _Project.Scripts.Network
                     return;
                 }
 
-                Vector3 translation = new Vector3(NetworkRunDirection.x, NetworkRunDirection.y, 0f) * _moveSpeed * Runner.DeltaTime;
+                var translation = new Vector3(NetworkRunDirection.x, NetworkRunDirection.y, 0f) * _moveSpeed * Runner.DeltaTime;
                 transform.position += translation;
             }
 
@@ -98,8 +98,8 @@ namespace _Project.Scripts.Network
         {
             if (!HasStateAuthority) return;
 
-            float explosionRadius = _skillData != null ? _skillData.cloneExplosionRadius : 3f;
-            float explosionDamage = _skillData != null ? _skillData.cloneExplosionDamage : 150f;
+            var explosionRadius = _skillData != null ? _skillData.cloneExplosionRadius : 3f;
+            var explosionDamage = _skillData != null ? _skillData.cloneExplosionDamage : 150f;
             float3 myPos = transform.position;
 
             var enemyQuery = _entityManager.CreateEntityQuery(
@@ -110,7 +110,7 @@ namespace _Project.Scripts.Network
             var enemyEntities = enemyQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
             var enemyTransforms = enemyQuery.ToComponentDataArray<LocalTransform>(Unity.Collections.Allocator.Temp);
 
-            for (int i = 0; i < enemyEntities.Length; i++)
+            for (var i = 0; i < enemyEntities.Length; i++)
             {
                 if (math.distance(myPos, enemyTransforms[i].Position) <= explosionRadius)
                 {
