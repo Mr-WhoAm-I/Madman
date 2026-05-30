@@ -144,6 +144,11 @@ namespace _Project.Scripts.Gameplay
             {
                 _entityManager.SetComponentData(newEnemy, new EnemyHealthComponent { CurrentHealth = finalHealth });
             }
+
+            // --- ДОБАВЛЕНО: Выдаем врагу его персональную награду ---
+            // (Позже мы можем умножать baseBounty на множитель волны CurrentWaveIndex)
+            int finalBounty = data.baseBounty; 
+            _entityManager.AddComponentData(newEnemy, new EnemyLootDropComponent { Bounty = finalBounty });
         }
 
         private int GetAliveEnemiesCount()

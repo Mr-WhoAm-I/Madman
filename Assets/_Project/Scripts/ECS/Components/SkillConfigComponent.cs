@@ -22,6 +22,10 @@ namespace _Project.Scripts.ECS.Components
         public float ShieldAuraRadius;
         public int MaxTurrets;
         public float TurretLifeTime;
+        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ ПАРАНОИКА ---
+        public float ShieldReflect; 
+        public bool TurretExplode;  
+        public bool TurretCryo;     
 
         // Параметры Шизоида
         public float InstabilityTimePerStack;
@@ -30,6 +34,9 @@ namespace _Project.Scripts.ECS.Components
         public float InvisibilityDuration;
         public float CloneExplosionDamage;
         public float CloneExplosionRadius;
+        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ ШИЗОИДА ---
+        public float CloneRadiusMult; 
+        public int MiniClones;        
         
         // Параметры Меланхолика
         public float FrostSlowMultiplier;
@@ -37,5 +44,21 @@ namespace _Project.Scripts.ECS.Components
         public float FreezeDuration;
         public int ChainTargetsCount;
         public float ChainExplosionDamage;
+        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ МЕЛАНХОЛИКА ---
+        public int ShrapnelDeath;         
+        public float FrostVulnerability;  
+        
+        // --- БАЗОВЫЕ ХАРАКТЕРИСТИКИ ---
+        public float BaseDamage;
+        public float CritChance;
+        public float CritDamage;
+        public float MagnetRadius;
+        public float CooldownReduction;
+
+        // --- ОРУЖЕЙНЫЕ МОДИФИКАТОРЫ ---
+        public int PierceCount;
+        public int RicochetCount;
+        public int ExtraProjectiles;
+        public float Lifesteal;
     }
 }

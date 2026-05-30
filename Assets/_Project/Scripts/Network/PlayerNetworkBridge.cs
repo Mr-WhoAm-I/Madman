@@ -6,6 +6,7 @@ using UnityEngine;
 using _Project.Scripts.Core;
 using _Project.Scripts.Data;
 using _Project.Scripts.ECS.Components;
+using _Project.Scripts.Gameplay;
 
 namespace _Project.Scripts.Network
 {
@@ -15,6 +16,9 @@ namespace _Project.Scripts.Network
     public class PlayerNetworkBridge : NetworkBehaviour
     {
         [Networked] public int NetworkArchetypeID { get; set; }
+        [Networked] public int NetworkCurrency { get; set; }
+        [Networked, Capacity(32)] 
+        public NetworkLinkedList<NetworkString<_32>> PurchasedUpgrades { get; }
         
         // --- ПЕРЕМЕННЫЕ ДЛЯ СИНХРОНИЗАЦИИ КУЛДАУНА ---
         [Networked] public float NetworkCurrentCooldown { get; set; }
@@ -517,7 +521,7 @@ namespace _Project.Scripts.Network
         
         private void Update()
         {
-            if (_spriteRenderer == null) return;
+            if (!_spriteRenderer) return;
 
             // Проверяем, есть ли на нашей ECS-сущности компонент невидимости
             if (_entityManager.Exists(_playerEntity) && _entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
@@ -534,6 +538,109 @@ namespace _Project.Scripts.Network
                 c.a = 1.0f;
                 _spriteRenderer.color = c;
             }
+        }
+        
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void Rpc_AddCurrency(int amount)
+        {
+            NetworkCurrency += amount;
+            Debug.Log($"<color=#FFD700>[ЭКОНОМИКА]</color> Игрок {Object.InputAuthority} подобрал {amount} монет! Всего: {NetworkCurrency}");
+        }
+        
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void Rpc_RequestPurchaseUpgrade(NetworkString<_32> upgradeID, int cost)
+        {
+            if (NetworkCurrency >= cost && !PurchasedUpgrades.Contains(upgradeID))
+            {
+                NetworkCurrency -= cost;
+                PurchasedUpgrades.Add(upgradeID);
+                
+                // === ПРИМЕНЯЕМ ПЕРК ===
+                var upgradeData = LocalShopManager.Instance.GetUpgradeByID(upgradeID.ToString());
+                if (upgradeData != null)
+                {
+                    ApplyUpgradeToECS(upgradeData);
+                }
+                
+                Debug.Log($"<color=#32CD32>[МАГАЗИН]</color> Игрок {Object.InputAuthority} успешно купил {upgradeID}!");
+            }
+        }
+
+        private void ApplyUpgradeToECS(UpgradeData upgrade)
+        {
+            if (!_entityManager.Exists(_playerEntity)) return;
+
+            // 1. Изменение не-ECS параметров (например, Здоровье)
+            if (upgrade.upgradeType == UpgradeType.MaxHealth)
+            {
+                var health = GetComponent<Health>();
+                if (health != null)
+                {
+                    float bonus = health.MaxHealth * upgrade.value;
+                    health.MaxHealth += bonus;
+                    health.CurrentHealth += bonus; 
+                }
+                return;
+            }
+
+            // 2. Изменение ECS-параметров
+            var config = _entityManager.GetComponentData<SkillConfigComponent>(_playerEntity);
+
+            switch (upgrade.upgradeType)
+            {
+                // Базовые
+                case UpgradeType.FlatDamage: config.BaseDamage += upgrade.value; break;
+                case UpgradeType.CritChance: config.CritChance += upgrade.value; break;
+                case UpgradeType.CritDamage: config.CritDamage += upgrade.value; break;
+                case UpgradeType.MagnetRadius: config.MagnetRadius += upgrade.value; break;
+                
+                case UpgradeType.MoveSpeed:
+                    var movement = _entityManager.GetComponentData<PlayerMovementComponent>(_playerEntity);
+                    movement.MoveSpeed += movement.MoveSpeed * upgrade.value;
+                    _entityManager.SetComponentData(_playerEntity, movement);
+                    break;
+                    
+                case UpgradeType.CooldownReduction:
+                    config.CooldownReduction += upgrade.value;
+                    NetworkMaxCooldown *= (1f - upgrade.value);
+                    break;
+
+                // Оружейные
+                case UpgradeType.PierceCount: config.PierceCount += (int)upgrade.value; break;
+                case UpgradeType.RicochetCount: config.RicochetCount += (int)upgrade.value; break;
+                case UpgradeType.ExtraProjectiles: config.ExtraProjectiles += (int)upgrade.value; break;
+                
+                case UpgradeType.Lifesteal:
+                    config.Lifesteal += upgrade.value;
+                    if (NetworkArchetypeID == 0) config.FuryLifesteal += upgrade.value; // Бонус для Истерика
+                    break;
+
+                // Классовые: Истерик
+                case UpgradeType.FuryThreshold: config.FuryHealthThreshold = upgrade.value; break;
+
+                // Классовые: Параноик
+                case UpgradeType.ShieldRechargeTime: config.ShieldRechargeTime = upgrade.value; break;
+                case UpgradeType.ShieldReflect: config.ShieldReflect += upgrade.value; break;
+                case UpgradeType.MaxTurrets: config.MaxTurrets = (int)upgrade.value; break;
+                case UpgradeType.TurretExplode: config.TurretExplode = upgrade.value > 0; break;
+                case UpgradeType.TurretCryo: config.TurretCryo = upgrade.value > 0; break;
+
+                // Классовые: Шизоид
+                case UpgradeType.MaxInstability: config.InstabilityMaxStacks = (int)upgrade.value; break;
+                case UpgradeType.CloneRadiusMult: config.CloneRadiusMult = upgrade.value; break;
+                case UpgradeType.MiniClones: config.MiniClones = (int)upgrade.value; break;
+                case UpgradeType.InvisDuration: config.InvisibilityDuration += upgrade.value; break;
+
+                // Классовые: Меланхолик
+                case UpgradeType.FreezeDuration: config.FreezeDuration = upgrade.value; break;
+                case UpgradeType.ApathyMaxStacks: config.ApathyMaxStacks = (int)upgrade.value; break;
+                case UpgradeType.ChainTargets: config.ChainTargetsCount = (int)upgrade.value; break;
+                case UpgradeType.ShrapnelDeath: config.ShrapnelDeath = (int)upgrade.value; break;
+                case UpgradeType.FrostVulnerability: config.FrostVulnerability = upgrade.value; break;
+            }
+
+            // Сохраняем измененные данные обратно в ECS
+            _entityManager.SetComponentData(_playerEntity, config);
         }
     }
 }

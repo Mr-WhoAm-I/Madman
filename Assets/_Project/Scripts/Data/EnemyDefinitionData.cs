@@ -13,6 +13,7 @@ namespace _Project.Scripts.Data
         public float baseHealth = 100f;
         public float baseDamage = 10f;
         public float baseSpeed = 3f;
+        public int baseBounty = 10;
 
         [Header("Рост за каждый уровень")]
         [Tooltip("Сколько ХП прибавляется за каждый уровень свыше первого")]
