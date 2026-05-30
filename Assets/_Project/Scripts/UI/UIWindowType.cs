@@ -7,6 +7,7 @@ namespace _Project.Scripts.UI
         Settings,
         Bestiary,
         Wardrobe,    // На будущее для интеграции
-        MissionSelect // На будущее для интеграции
+        MissionSelect, // На будущее для интеграции
+        Shop
     }
 }

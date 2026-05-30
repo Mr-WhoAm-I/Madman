@@ -83,6 +83,7 @@ namespace _Project.Scripts.UI
             // Подписываемся на экшены (Проверь названия экшенов в своем файле .inputactions)
             _inputActions.UI.ToggleNetworkMenu.performed += OnToggleNetworkMenuPressed;
             _inputActions.UI.Menu.performed += OnEscapePressed; 
+            _inputActions.UI.ToggleShop.performed += OnToggleShopPressed;
             
             _inputActions.Enable();
         }
@@ -92,6 +93,7 @@ namespace _Project.Scripts.UI
             if (_inputActions == null) return;
             _inputActions.UI.ToggleNetworkMenu.performed -= OnToggleNetworkMenuPressed;
             _inputActions.UI.Menu.performed -= OnEscapePressed;
+            _inputActions.UI.ToggleShop.performed -= OnToggleShopPressed;
             _inputActions.Disable();
         }
 
@@ -186,6 +188,12 @@ namespace _Project.Scripts.UI
             {
                 CloseCurrentWindow();
             }
+        }
+        
+        private void OnToggleShopPressed(InputAction.CallbackContext context)
+        {
+            if (IsUserTyping()) return;
+            ToggleWindow(UIWindowType.Shop);
         }
 
         public void OpenWindow(UIWindowType type)

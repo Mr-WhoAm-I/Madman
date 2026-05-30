@@ -22,6 +22,12 @@ namespace _Project.Scripts.Gameplay
 
         [Networked] private int CurrentWaveIndex { get; set; }
         [Networked] public NetworkBool IsShopPhase { get; set; }
+        [Header("Тайминги фаз")]
+        [Tooltip("Сколько секунд дается игрокам на сбор лута после убийства последнего врага")]
+        public float timeToCollectLoot = 5f;
+        
+        [Tooltip("Сколько секунд длится фаза магазина до принудительного начала следующей волны")]
+        public float shopPhaseDuration = 30f;
 
         private EntityManager _entityManager;
         private Entity _registryEntity;
@@ -83,10 +89,21 @@ namespace _Project.Scripts.Gameplay
                 Debug.Log($"[WaveManager] ВОЛНА {currentWave.waveName} ОТБИТА!");
                 Rpc_GrantExperience(currentWave.waveXpReward);
 
+                // === НОВАЯ ЛОГИКА ФАЗ ===
                 if (currentWave.hasShopAfterWave)
                 {
+                    Debug.Log($"[WaveManager] Ждем {timeToCollectLoot} сек. для сбора лута...");
+                    yield return new WaitForSeconds(timeToCollectLoot);
+
                     IsShopPhase = true;
-                    yield return new WaitForSeconds(5f); 
+                    Rpc_SetShopUIState(true);
+                    Debug.Log($"[WaveManager] ФАЗА МАГАЗИНА НАЧАТА! Длительность: {shopPhaseDuration} сек.");
+
+                    yield return new WaitForSeconds(shopPhaseDuration);
+
+                    IsShopPhase = false;
+                    Rpc_SetShopUIState(false);
+                    Debug.Log("[WaveManager] ФАЗА МАГАЗИНА ОКОНЧЕНА! Подготовка к следующей волне...");
                 }
 
                 CurrentWaveIndex++;
@@ -162,6 +179,23 @@ namespace _Project.Scripts.Gameplay
         public void Rpc_GrantExperience(float xpAmount)
         {
             _profileController?.AddExperience(xpAmount);
+        }
+        
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void Rpc_SetShopUIState(NetworkBool isOpen)
+        {
+            if (HUDManager.Instance == null) return;
+
+            if (isOpen)
+            {
+                // Принудительно открываем окно магазина
+                HUDManager.Instance.OpenWindow(UIWindowType.Shop);
+            }
+            else
+            {
+                // Принудительно закрываем текущее окно (чтобы выкинуть игроков из магазина перед боем)
+                HUDManager.Instance.CloseCurrentWindow(); 
+            }
         }
     }
 }
