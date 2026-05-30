@@ -154,36 +154,43 @@ namespace _Project.Scripts.Network
                     var command = _entityManager.GetComponentData<SpawnTurretCommand>(_playerEntity);
                     var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
                     
-                    if (archetypeData != null && archetypeData.activeSkillData is TurretSkillData turretSkill)
+                    // ИСПРАВЛЕНО: Теперь читаем настройки из ParanoiacSkillData
+                    if (archetypeData != null && archetypeData.activeSkillData is ParanoiacSkillData paranoiacSkill)
                     {
-                        var activeCount = 0;
-                        TurretNetworkBridge oldestTurret = null;
-                        
-                        for (var i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
+                        var turretCombat = paranoiacSkill.turretCombatSettings;
+                        if (turretCombat != null)
                         {
-                            if (TurretNetworkBridge.ActiveTurrets[i].OwnerPlayer == Object.InputAuthority)
+                            var activeCount = 0;
+                            TurretNetworkBridge oldestTurret = null;
+                            
+                            for (var i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
                             {
-                                activeCount++;
-                                if (oldestTurret == null) 
+                                if (TurretNetworkBridge.ActiveTurrets[i].OwnerPlayer == Object.InputAuthority)
                                 {
-                                    oldestTurret = TurretNetworkBridge.ActiveTurrets[i];
+                                    activeCount++;
+                                    if (oldestTurret == null) 
+                                    {
+                                        oldestTurret = TurretNetworkBridge.ActiveTurrets[i];
+                                    }
                                 }
                             }
-                        }
 
-                        if (activeCount >= turretSkill.maxTurrets && oldestTurret != null)
-                        {
-                            Runner.Despawn(oldestTurret.Object);
-                        }
-
-                        Runner.Spawn(turretSkill.turretPrefab, command.Position, Quaternion.identity, Object.InputAuthority, (runner, obj) => 
-                        {
-                            var turretBridge = obj.GetComponent<TurretNetworkBridge>();
-                            if (turretBridge != null)
+                            // Читаем лимит турелей из профиля Параноика
+                            if (activeCount >= paranoiacSkill.maxTurrets && oldestTurret != null)
                             {
-                                turretBridge.Initialize(Object.InputAuthority, turretSkill);
+                                Runner.Despawn(oldestTurret.Object);
                             }
-                        });
+
+                            Runner.Spawn(turretCombat.turretPrefab, command.Position, Quaternion.identity, Object.InputAuthority, (runner, obj) => 
+                            {
+                                var turretBridge = obj.GetComponent<TurretNetworkBridge>();
+                                if (turretBridge != null)
+                                {
+                                    // Передаем боевые настройки и время жизни турели!
+                                    turretBridge.Initialize(Object.InputAuthority, turretCombat, paranoiacSkill.turretLifeTime);
+                                }
+                            });
+                        }
                     }
                 }
                 
@@ -333,13 +340,21 @@ namespace _Project.Scripts.Network
             // Сборка динамических параметров под конкретные классы
             var dashSpd = 0f;
             float dashDur = 0.2f;
-            // Новые переменные Истерика
+            
+            // Параметры Истерика
             float furyThreshold = 0.3f;
             float furySpeedMult = 1.5f;
             float furyLifesteal = 0f;
             int tornadoMult = 1;
             
-            // Параметры шизоида 
+            // Параметры Параноика
+            float shieldCap = 100f;
+            float shieldRecharge = 5f;
+            float auraRad = 3f;
+            int maxTurrets = 1;
+            float turretTime = 15f;
+            
+            // Параметры Шизоида 
             var instabilityTime = 1f;
             var instabilityMax = 4;
             var instabilityDmg = 0.2f;
@@ -364,6 +379,14 @@ namespace _Project.Scripts.Network
                 furyLifesteal = hystericData.furyLifesteal;
                 tornadoMult = hystericData.tornadoBulletMultiplier;
             }
+            else if (archetypeData != null && archetypeData.activeSkillData is ParanoiacSkillData paranoiacData)
+            {
+                shieldCap = paranoiacData.shieldCapacity;
+                shieldRecharge = paranoiacData.shieldRechargeTime;
+                auraRad = paranoiacData.shieldAuraRadius;
+                maxTurrets = paranoiacData.maxTurrets;
+                turretTime = paranoiacData.turretLifeTime;
+            }
             else if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidData)
             {
                 instabilityTime = schizoidData.timePerInstabilityStack;
@@ -387,12 +410,21 @@ namespace _Project.Scripts.Network
             {
                 CastDistance = castDist,
                 EffectRadius = effectRad,
+                
+                // Наполнение конфига Истерика
                 DashSpeed = dashSpd,
                 DashDuration = dashDur,
                 FuryHealthThreshold = furyThreshold,
                 FurySpeedMultiplier = furySpeedMult,
                 FuryLifesteal = furyLifesteal,
                 TornadoBulletMultiplier = tornadoMult,
+                
+                // Наполнение конфига Параноика
+                ShieldCapacity = shieldCap,
+                ShieldRechargeTime = shieldRecharge,
+                ShieldAuraRadius = auraRad,
+                MaxTurrets = maxTurrets,
+                TurretLifeTime = turretTime,
                 
                 // Наполнение конфига Шизоида
                 InstabilityTimePerStack = instabilityTime,
@@ -420,6 +452,8 @@ namespace _Project.Scripts.Network
                 _entityManager.RemoveComponent<QuantumInstabilityComponent>(_playerEntity);
             if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
                 _entityManager.RemoveComponent<InvisibilityStateComponent>(_playerEntity);
+            if  (_entityManager.HasComponent<EnergyShieldComponent>(_playerEntity))
+                _entityManager.RemoveComponent<EnergyShieldComponent>(_playerEntity);
 
             switch (archetypeID)
             {
@@ -428,6 +462,13 @@ namespace _Project.Scripts.Network
                     break;
                 case 1: 
                     _entityManager.AddComponent<ParanoiacTag>(_playerEntity); 
+                    // Выдаем щит Параноику!
+                    _entityManager.AddComponentData(_playerEntity, new EnergyShieldComponent 
+                    { 
+                        MaxShield = shieldCap, 
+                        CurrentShield = shieldCap, 
+                        OutOfCombatTimer = 0f 
+                    });
                     break;
                 case 2: 
                     _entityManager.AddComponent<SchizoidTag>(_playerEntity);

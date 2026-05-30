@@ -15,6 +15,13 @@ namespace _Project.Scripts.ECS.Components
         public float FurySpeedMultiplier;
         public float FuryLifesteal;
         public int TornadoBulletMultiplier;
+        
+        // Параметры Параноика
+        public float ShieldCapacity;
+        public float ShieldRechargeTime;
+        public float ShieldAuraRadius;
+        public int MaxTurrets;
+        public float TurretLifeTime;
 
         // Параметры Шизоида
         public float InstabilityTimePerStack;

@@ -19,14 +19,17 @@ namespace _Project.Scripts.Network
         private EntityManager _entityManager;
         private TurretSkillData _skillData;
         private Health _healthComponent;
+        private float _lifeTime; // Время жизни, переданное от Параноика
         
         [Networked] private TickTimer FireTimer { get; set; }
         [Networked] private TickTimer TauntTimer { get; set; }
+        [Networked] private TickTimer LifeTimer { get; set; } // ДОБАВЛЕНО: Сетевой таймер жизни
 
-        public void Initialize(PlayerRef owner, TurretSkillData data)
+        public void Initialize(PlayerRef owner, TurretSkillData data, float lifeTime)
         {
             OwnerPlayer = owner;
             _skillData = data;
+            _lifeTime = lifeTime;
         }
 
         public override void Spawned()
@@ -43,9 +46,11 @@ namespace _Project.Scripts.Network
                 IsTaunting = true; 
                 TauntTimer = TickTimer.CreateFromSeconds(Runner, _skillData.tauntDuration);
                 FireTimer = TickTimer.CreateFromSeconds(Runner, 1f / _skillData.fireRate);
+                
+                // Запускаем таймер самоуничтожения
+                LifeTimer = TickTimer.CreateFromSeconds(Runner, _lifeTime);
             }
 
-            // ИСПРАВЛЕНО: Добавили регистрирацию TauntComponent на сущности турели в ECS
             _turretEntity = _entityManager.CreateEntity(
                 typeof(LocalTransform),
                 typeof(TargetableComponent),
@@ -64,7 +69,6 @@ namespace _Project.Scripts.Network
         {
             if (HasStateAuthority)
             {
-                // 1. АВТОР СЕРВЕРНАЯ ПРОВЕРКА ВЛАДЕЛЬЦА
                 var isOwnerAlive = false;
                 for (var i = PlayerManager.AllActivePlayers.Count - 1; i >= 0; i--)
                 {
@@ -76,22 +80,19 @@ namespace _Project.Scripts.Network
                     }
                 }
                 
-                if (!isOwnerAlive || _healthComponent == null || _healthComponent.IsDead)
+                // УСЛОВИЕ УНИЧТОЖЕНИЯ: Владелец мертв, ХП кончилось ИЛИ вышло время жизни!
+                if (!isOwnerAlive || _healthComponent == null || _healthComponent.IsDead || LifeTimer.Expired(Runner))
                 {
-                    Runner.Despawn(Object);
+                    ExplodeAndDestroy();
                     return;
                 }
 
-                // 2. ОБНОВЛЕНИЕ СЕТЕВОГО СОСТОЯНИЯ ТАУНТА ПО ТАЙМЕРУ
                 if (IsTaunting && TauntTimer.Expired(Runner))
                 {
                     IsTaunting = false; 
                 }
             }
 
-            // =========================================================================
-            // ФАЗА ПУЛЛА ДЛЯ ТУРЕЛИ: СЕТЬ -> ECS
-            // =========================================================================
             if (!_entityManager.Exists(_turretEntity)) return;
             
             _entityManager.SetComponentData(_turretEntity, LocalTransform.FromPosition(transform.position));
@@ -99,9 +100,7 @@ namespace _Project.Scripts.Network
             var currentPriority = IsTaunting ? 5.0f : 1.0f;
             _entityManager.SetComponentData(_turretEntity, new TargetableComponent { Priority = currentPriority });
 
-            // ИСПРАВЛЕНО: Записываем актуальный динамический радиус таунта. 
-            // Если турель оттаунтила, её радиус падает в 0, чтобы мобы переключились обратно на игроков.
-            var currentRadius = IsTaunting ? (_skillData != null ? _skillData.effectRadius : 10f) : 0f;
+            var currentRadius = IsTaunting ? (_skillData != null ? _skillData.attackRadius : 10f) : 0f;
             _entityManager.SetComponentData(_turretEntity, new TauntComponent 
             { 
                 Radius = currentRadius, 
@@ -148,6 +147,15 @@ namespace _Project.Scripts.Network
                 }
             }
             return MyClosestDir;
+        }
+
+        private void ExplodeAndDestroy()
+        {
+            // ЗАДЕЛ ПОД ПЕРК "Взрывной реактор"
+            // В будущем мы здесь сделаем ECS-запрос (как у Меланхолика) и нанесем АоЕ урон.
+            Debug.Log("<color=#FF4500>[ТУРЕЛЬ]</color> Самоуничтожение (кончилось ХП или время)!");
+            
+            Runner.Despawn(Object);
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
