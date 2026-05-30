@@ -29,8 +29,11 @@ namespace _Project.Scripts.Network
         {
             if (GetComponent<Health>().IsDead) return;
 
+            // Флаг для удобной проверки валидности ECS-сущности
+            bool hasBridge = _bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity);
+
             // 1. Проверяем, есть ли мост и жива ли сущность в ECS
-            if (_bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity))
+            if (hasBridge)
             {
                 // 2. СПРАШИВАЕМ ECS: Мы сейчас в состоянии рывка?
                 if (_bridge.EntityManager.HasComponent<DashComponent>(_bridge.PlayerEntity))
@@ -51,13 +54,22 @@ namespace _Project.Scripts.Network
             // 3. ОБЫЧНОЕ ДВИЖЕНИЕ (если рывка нет)
             if (GetInput(out NetworkInputData data))
             {
+                float currentSpeed = speed;
+
+                // === ААА-МЕХАНИКА: ПАССИВКА ИСТЕРИКА (Ускорение) ===
+                if (hasBridge && _bridge.EntityManager.HasComponent<HystericFuryStateTag>(_bridge.PlayerEntity))
+                {
+                    var config = _bridge.EntityManager.GetComponentData<SkillConfigComponent>(_bridge.PlayerEntity);
+                    currentSpeed *= config.FurySpeedMultiplier;
+                }
+
                 var moveDirection = new Vector3(data.MovementInput.x, data.MovementInput.y, 0f);
-                transform.position += moveDirection * speed * Runner.DeltaTime;
+                transform.position += moveDirection * currentSpeed * Runner.DeltaTime;
             }
             
             UpdateLocalPosition();
             
-            if (_bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity))
+            if (hasBridge)
             {
                 _bridge.EntityManager.SetComponentData(_bridge.PlayerEntity, 
                     Unity.Transforms.LocalTransform.FromPosition(transform.position));

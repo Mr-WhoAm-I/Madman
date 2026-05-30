@@ -10,7 +10,7 @@ namespace _Project.Scripts.ECS.Systems
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // --- ЛОГИКА 1: Нанесение урона игрокам/сетевым объектам через HealthLink ---
+            // --- ЛОГИКА 1: Урон игрокам/сетевым объектам ---
             foreach (var (takeDamage, healthLink) in SystemAPI.Query<RefRO<TakeDamageComponent>, HealthLinkComponent>())
             {
                 if (healthLink.Value != null && healthLink.Value.Object != null && healthLink.Value.Object.IsValid)
@@ -22,20 +22,38 @@ namespace _Project.Scripts.ECS.Systems
                 }
             }
 
-            // --- ЛОГИКА 2: Нанесение урона врагам через ECS EnemyHealthComponent ---
-            // ИСПРАВЛЕНО: Добавлено WithEntityAccess()
+            // --- ЛОГИКА 2: Урон врагам и ВАМПИРИЗМ ---
             foreach (var (takeDamage, enemyHealth, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>, RefRW<EnemyHealthComponent>>().WithEntityAccess())
             {
-                enemyHealth.ValueRW.CurrentHealth -= takeDamage.ValueRO.Amount;
+                float damageAmount = takeDamage.ValueRO.Amount;
+                enemyHealth.ValueRW.CurrentHealth -= damageAmount;
                 
-                // AAA-стандарт: Отложенная смерть. Если ХП <= 0, вешаем тег смерти.
+                // === ААА-МЕХАНИКА: ВАМПИРИЗМ ===
+                Entity attacker = takeDamage.ValueRO.SourceEntity;
+                if (attacker != Entity.Null && SystemAPI.HasComponent<HystericFuryStateTag>(attacker))
+                {
+                    var config = SystemAPI.GetComponent<SkillConfigComponent>(attacker);
+                    
+                    // ИСПРАВЛЕНО: Используем state.EntityManager для managed-компонента
+                    if (config.FuryLifesteal > 0f && state.EntityManager.HasComponent<HealthLinkComponent>(attacker))
+                    {
+                        var attackerHealthLink = state.EntityManager.GetComponentObject<HealthLinkComponent>(attacker);
+                        if (attackerHealthLink.Value != null && attackerHealthLink.Value.HasStateAuthority)
+                        {
+                            float healAmount = damageAmount * config.FuryLifesteal;
+                            attackerHealthLink.Value.Heal(healAmount);
+                        }
+                    }
+                }
+
+                // Отложенная смерть
                 if (enemyHealth.ValueRO.CurrentHealth <= 0)
                 {
                     ecb.AddComponent<DeathTagComponent>(entity);
                 }
             }
 
-            // --- ОЧИСТКА: Гарантированно удаляем компонент урона у ВСЕХ, чтобы он не залипал ---
+            // --- ОЧИСТКА: Гарантированно удаляем компонент урона ---
             foreach (var (takeDamage, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>>().WithEntityAccess())
             {
                 ecb.RemoveComponent<TakeDamageComponent>(entity);

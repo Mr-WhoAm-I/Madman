@@ -11,6 +11,10 @@ namespace _Project.Scripts.ECS.Components
         // Параметры Истерика
         public float DashSpeed;
         public float DashDuration;
+        public float FuryHealthThreshold;
+        public float FurySpeedMultiplier;
+        public float FuryLifesteal;
+        public int TornadoBulletMultiplier;
 
         // Параметры Шизоида
         public float InstabilityTimePerStack;

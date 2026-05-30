@@ -24,6 +24,20 @@ namespace _Project.Scripts.Network
             Rpc_OnPlayerDeath();
         }
 
+        public void Heal(float amount)
+        {
+            // Лечение проходит только на Сервере, если игрок жив и сумма больше 0
+            if (!HasStateAuthority || IsDead || amount <= 0f) return;
+            
+            CurrentHealth += amount;
+            if (CurrentHealth > MaxHealth)
+            {
+                CurrentHealth = MaxHealth;
+            }
+            
+            Debug.Log($"<color=#32CD32>[ОТХИЛ]</color> Восстановлено: {amount}. Текущее здоровье: {CurrentHealth}");
+        }
+        
         // Атрибут RPC: Источник - Сервер, Цель - Все клиенты
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void Rpc_OnPlayerDeath()

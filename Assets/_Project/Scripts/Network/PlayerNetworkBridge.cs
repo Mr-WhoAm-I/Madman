@@ -332,7 +332,12 @@ namespace _Project.Scripts.Network
                 
             // Сборка динамических параметров под конкретные классы
             var dashSpd = 0f;
-            var dashDur = 0f;
+            float dashDur = 0.2f;
+            // Новые переменные Истерика
+            float furyThreshold = 0.3f;
+            float furySpeedMult = 1.5f;
+            float furyLifesteal = 0f;
+            int tornadoMult = 1;
             
             // Параметры шизоида 
             var instabilityTime = 1f;
@@ -353,6 +358,11 @@ namespace _Project.Scripts.Network
             {
                 dashSpd = hystericData.dashSpeed;
                 dashDur = hystericData.dashDuration;
+                
+                furyThreshold = hystericData.furyHealthThreshold;
+                furySpeedMult = hystericData.furySpeedMultiplier;
+                furyLifesteal = hystericData.furyLifesteal;
+                tornadoMult = hystericData.tornadoBulletMultiplier;
             }
             else if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidData)
             {
@@ -379,6 +389,10 @@ namespace _Project.Scripts.Network
                 EffectRadius = effectRad,
                 DashSpeed = dashSpd,
                 DashDuration = dashDur,
+                FuryHealthThreshold = furyThreshold,
+                FurySpeedMultiplier = furySpeedMult,
+                FuryLifesteal = furyLifesteal,
+                TornadoBulletMultiplier = tornadoMult,
                 
                 // Наполнение конфига Шизоида
                 InstabilityTimePerStack = instabilityTime,
