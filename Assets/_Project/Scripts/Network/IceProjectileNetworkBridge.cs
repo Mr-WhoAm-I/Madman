@@ -16,20 +16,47 @@ namespace _Project.Scripts.Network
         
         private MelancholicSkillData _skillData;
         private Entity _shooterEntity;
-        private float _speed = 12f;
+        
+        private float _speed;
+        private float _maxDistance;
         private bool _hasExploded = false;
+        private Vector3 _startPos;
+        
+        private bool _isShard = false;
+        private Entity _targetEntity = Entity.Null;
 
-        public void Initialize(PlayerRef owner, MelancholicSkillData data, float2 direction, Entity shooterEntity)
+        // Инициализация основного снаряда
+        public void InitializeMain(PlayerRef owner, MelancholicSkillData data, float2 direction, Entity shooterEntity)
         {
             _skillData = data;
             _shooterEntity = shooterEntity;
+            _startPos = transform.position;
+            _isShard = false;
+            
+            // Читаем параметры из конфига
+            _maxDistance = data != null ? data.projectileMaxDistance : 15f;
+            _speed = data != null ? data.projectileSpeed : 12f;
+        }
+
+        // Инициализация самонаводящегося шипа
+        public void InitializeShard(PlayerRef owner, MelancholicSkillData data, Entity shooterEntity, Entity target)
+        {
+            _skillData = data;
+            _shooterEntity = shooterEntity;
+            _isShard = true;
+            _targetEntity = target;
+            
+            // Читаем параметры из конфига
+            _speed = data != null ? data.shardSpeed : 18f;
+            
+            transform.localScale = new Vector3(0.5f, 0.5f, 0.5f); 
         }
 
         public override void Spawned()
         {
             if (HasStateAuthority)
             {
-                LifeTimer = TickTimer.CreateFromSeconds(Runner, 3.0f); // Снаряд живет максимум 3 секунды
+                LifeTimer = TickTimer.CreateFromSeconds(Runner, 5.0f); // Защитный фолбэк на случай улета за карту
             }
         }
 
@@ -43,20 +70,88 @@ namespace _Project.Scripts.Network
                 return;
             }
 
-            transform.position += transform.up * _speed * Runner.DeltaTime;
+            var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+            float3 currentPos = transform.position;
+
+            // =======================================================
+            // ЛОГИКА 1: САМОНАВОДЯЩИЙСЯ ШИП
+            // =======================================================
+            if (_isShard)
+            {
+                if (em.Exists(_targetEntity) && em.HasComponent<LocalTransform>(_targetEntity))
+                {
+                    float3 targetPos = em.GetComponentData<LocalTransform>(_targetEntity).Position;
+                    Vector3 dir = math.normalize(targetPos - currentPos);
+                    
+                    float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+                    transform.rotation = Quaternion.Euler(0, 0, angle);
+                    transform.position += dir * _speed * Runner.DeltaTime;
+
+                    if (math.distance(currentPos, targetPos) < 0.8f)
+                    {
+                        HitTarget(_targetEntity);
+                    }
+                }
+                else
+                {
+                    transform.position += transform.up * _speed * Runner.DeltaTime;
+                }
+            }
+            // =======================================================
+            // ЛОГИКА 2: ОСНОВНОЙ СНАРЯД (ЭПИЦЕНТР)
+            // =======================================================
+            else 
+            {
+                transform.position += transform.up * _speed * Runner.DeltaTime;
+
+                if (Vector3.Distance(_startPos, transform.position) >= _maxDistance)
+                {
+                    ExecuteChainExplosion();
+                    return;
+                }
+
+                var enemyQuery = em.CreateEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<EnemyTagComponent>());
+                var enemyEntities = enemyQuery.ToEntityArray(Allocator.Temp);
+                var enemyTransforms = enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+
+                bool hit = false;
+                for (int i = 0; i < enemyEntities.Length; i++)
+                {
+                    if (math.distance(currentPos, enemyTransforms[i].Position) < 0.8f) 
+                    {
+                        hit = true;
+                        break;
+                    }
+                }
+                
+                enemyEntities.Dispose();
+                enemyTransforms.Dispose();
+
+                if (hit)
+                {
+                    ExecuteChainExplosion();
+                }
+            }
         }
 
-        private void OnTriggerEnter2D(Collider2D other)
+        private void HitTarget(Entity target)
         {
-            if (!HasStateAuthority || _hasExploded) return;
-
-            if (other.TryGetComponent<Health>(out var health))
+            _hasExploded = true;
+            var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+            
+            // Вычисляем урон осколка через множитель
+            float dmg = _skillData != null ? (_skillData.chainExplosionDamage * _skillData.shardDamageMultiplier) : 75f;
+            
+            if (em.Exists(target))
             {
-                // Игнорируем дружественный огонь
-                if (Object.InputAuthority == health.Object.InputAuthority) return;
-                
-                ExecuteChainExplosion();
+                em.AddComponentData(target, new TakeDamageComponent 
+                { 
+                    Amount = dmg, 
+                    SourceEntity = _shooterEntity
+                });
             }
+            
+            Runner.Despawn(Object);
         }
 
         private void ExecuteChainExplosion()
@@ -64,20 +159,21 @@ namespace _Project.Scripts.Network
             _hasExploded = true;
             var em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
-            float explosionRadius = _skillData != null ? _skillData.effectRadius : 4f;
+            // Читаем все радиусы и уроны из конфига Меланхолика
+            float explosionRadius = _skillData != null ? _skillData.chainExplosionRadius : 4f;
             float damage = _skillData != null ? _skillData.chainExplosionDamage : 150f;
             int chainTargetsCount = _skillData != null ? _skillData.chainTargetsCount : 3;
+            float shardSearchRad = _skillData != null ? _skillData.shardSearchRadius : 8f;
             
             float3 myPos = transform.position;
 
-            // Собираем всех врагов на арене
             var enemyQuery = em.CreateEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<EnemyTagComponent>());
             var enemyEntities = enemyQuery.ToEntityArray(Allocator.Temp);
             var enemyTransforms = enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
 
             List<Entity> explodedEnemies = new List<Entity>();
 
-            // 1. АОЕ ВЗРЫВ (Эпицентр депрессии)
+            // 1. АОЕ ВЗРЫВ ЭПИЦЕНТРА
             for (int i = 0; i < enemyEntities.Length; i++)
             {
                 float dist = math.distance(myPos, enemyTransforms[i].Position);
@@ -86,20 +182,20 @@ namespace _Project.Scripts.Network
                     em.AddComponentData(enemyEntities[i], new TakeDamageComponent 
                     { 
                         Amount = damage, 
-                        SourceEntity = _shooterEntity // Передаем ID игрока для активации замедления!
+                        SourceEntity = _shooterEntity
                     });
                     explodedEnemies.Add(enemyEntities[i]);
                 }
             }
 
-            // 2. ЦЕПНАЯ РЕАКЦИЯ (Поиск соседей за пределами взрыва)
-            float chainMaxDistance = explosionRadius + 6f; // Насколько далеко от эпицентра бьет цепь
+            // 2. ПОИСК ЦЕЛЕЙ И ВЫЛЕТ САМОНАВОДЯЩИХСЯ ШИПОВ
+            float chainMaxDistance = explosionRadius + shardSearchRad; 
             var chainCandidates = new List<(Entity entity, float dist)>();
 
             for (int i = 0; i < enemyEntities.Length; i++)
             {
                 Entity enemy = enemyEntities[i];
-                if (explodedEnemies.Contains(enemy)) continue; // Уже получил урон от эпицентра
+                if (explodedEnemies.Contains(enemy)) continue;
 
                 float dist = math.distance(myPos, enemyTransforms[i].Position);
                 if (dist <= chainMaxDistance)
@@ -108,26 +204,30 @@ namespace _Project.Scripts.Network
                 }
             }
 
-            // Сортируем кандидатов, чтобы цепь била по ближайшим
             chainCandidates.Sort((a, b) => a.dist.CompareTo(b.dist));
 
-            int chainsApplied = 0;
+            int spawnedShards = 0;
             foreach (var candidate in chainCandidates)
             {
-                if (chainsApplied >= chainTargetsCount) break;
+                if (spawnedShards >= chainTargetsCount) break;
 
-                em.AddComponentData(candidate.entity, new TakeDamageComponent 
-                { 
-                    Amount = damage * 0.5f, // Шипы наносят 50% от базового урона (для баланса)
-                    SourceEntity = _shooterEntity
-                });
-                chainsApplied++;
+                if (_skillData != null)
+                {
+                    Runner.Spawn(_skillData.iceProjectilePrefab, transform.position, Quaternion.identity, Object.InputAuthority, (runner, obj) =>
+                    {
+                        var shardBridge = obj.GetComponent<IceProjectileNetworkBridge>();
+                        if (shardBridge != null)
+                        {
+                            shardBridge.InitializeShard(Object.InputAuthority, _skillData, _shooterEntity, candidate.entity);
+                        }
+                    });
+                }
+
+                spawnedShards++;
             }
 
             enemyEntities.Dispose();
             enemyTransforms.Dispose();
-
-            Debug.Log($"<color=#00FFFF>[МЕЛАНХОЛИК]</color> Ульта разорвалась! Эпицентр задел: {explodedEnemies.Count}. Шипы ударили: {chainsApplied} врагов.");
 
             Runner.Despawn(Object);
         }

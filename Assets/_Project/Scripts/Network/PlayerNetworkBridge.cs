@@ -241,7 +241,7 @@ namespace _Project.Scripts.Network
                             var iceBridge = obj.GetComponent<IceProjectileNetworkBridge>();
                             if (iceBridge != null)
                             {
-                                iceBridge.Initialize(Object.InputAuthority, melancholicSkill, command.CastDirection, _playerEntity);
+                                iceBridge.InitializeMain(Object.InputAuthority, melancholicSkill, command.CastDirection, _playerEntity);
                             }
                         });
                     }

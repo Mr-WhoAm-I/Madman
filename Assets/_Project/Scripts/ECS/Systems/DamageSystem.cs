@@ -3,28 +3,41 @@ using _Project.Scripts.ECS.Components;
 
 namespace _Project.Scripts.ECS.Systems
 {
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateInGroup(typeof(FusionUpdateGroup))]
     public partial struct DamageSystem : ISystem
     {
         public void OnUpdate(ref SystemState state)
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // Ищем все сущности, на которых висит запрос на урон (TakeDamageComponent) 
-            // И у которых есть ссылка на скрипт здоровья (HealthLinkComponent)
-            foreach (var (takeDamage, healthLink, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>, HealthLinkComponent>().WithEntityAccess())
+            // --- ЛОГИКА 1: Нанесение урона игрокам/сетевым объектам через HealthLink ---
+            foreach (var (takeDamage, healthLink) in SystemAPI.Query<RefRO<TakeDamageComponent>, HealthLinkComponent>())
             {
-                // Проверяем, что ссылка на скрипт не пустая и объект жив в сети
                 if (healthLink.Value != null && healthLink.Value.Object != null && healthLink.Value.Object.IsValid)
                 {
-                    // Если мы на сервере, наносим реальный урон
                     if (healthLink.Value.HasStateAuthority)
                     {
                         healthLink.Value.TakeDamage(takeDamage.ValueRO.Amount);
                     }
                 }
+            }
 
-                // Удаляем компонент урона, чтобы не наносить его каждый кадр бесконечно
+            // --- ЛОГИКА 2: Нанесение урона врагам через ECS EnemyHealthComponent ---
+            // ИСПРАВЛЕНО: Добавлено WithEntityAccess()
+            foreach (var (takeDamage, enemyHealth, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>, RefRW<EnemyHealthComponent>>().WithEntityAccess())
+            {
+                enemyHealth.ValueRW.CurrentHealth -= takeDamage.ValueRO.Amount;
+                
+                // AAA-стандарт: Отложенная смерть. Если ХП <= 0, вешаем тег смерти.
+                if (enemyHealth.ValueRO.CurrentHealth <= 0)
+                {
+                    ecb.AddComponent<DeathTagComponent>(entity);
+                }
+            }
+
+            // --- ОЧИСТКА: Гарантированно удаляем компонент урона у ВСЕХ, чтобы он не залипал ---
+            foreach (var (takeDamage, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>>().WithEntityAccess())
+            {
                 ecb.RemoveComponent<TakeDamageComponent>(entity);
             }
             

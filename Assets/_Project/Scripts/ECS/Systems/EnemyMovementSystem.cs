@@ -145,7 +145,7 @@ namespace _Project.Scripts.ECS.Systems
                     Amount = 10f, 
                     SourceEntity = entity 
                 });
-                Ecb.DestroyEntity(chunkIndex, entity); 
+                //Ecb.DestroyEntity(chunkIndex, entity); 
             }
             else
             {

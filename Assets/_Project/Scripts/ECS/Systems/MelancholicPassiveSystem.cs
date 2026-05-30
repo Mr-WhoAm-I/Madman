@@ -1,16 +1,21 @@
-using Unity.Entities;
 using _Project.Scripts.ECS.Components;
+using Unity.Entities;
+using UnityEngine;
 
 namespace _Project.Scripts.ECS.Systems
 {
     [UpdateInGroup(typeof(FusionUpdateGroup))]
-    // КРИТИЧЕСКИ ВАЖНО: Мы обязаны успеть прочитать теги урона ДО того, 
-    // как твоя DamageSystem отнимет здоровье и удалит компонент TakeDamageComponent.
+    [UpdateAfter(typeof(EnemyMovementSystem))]
+    [UpdateAfter(typeof(EnemyBulletCollisionSystem))]
     [UpdateBefore(typeof(DamageSystem))] 
     public partial struct MelancholicPassiveSystem : ISystem
     {
         public void OnUpdate(ref SystemState state)
         {
+            // === ИСПРАВЛЕНО: Безопасная проверка на null для Runner ===
+            var swarmManager = Network.EnemySwarmManager.Instance;
+            if (swarmManager == null || swarmManager.Runner == null || !swarmManager.Runner.IsForward) return;
+
             if (!SystemAPI.TryGetSingleton<NetworkTimeComponent>(out var timeComponent))
                 return;
 
@@ -18,63 +23,71 @@ namespace _Project.Scripts.ECS.Systems
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             // =========================================================================
-            // 1. ПЕРЕХВАТ СОБЫТИЙ УРОНА (РЕАКТИВНАЯ МАГИЯ)
+            // 1. ПЕРЕХВАТ СОБЫТИЙ УРОНА (ОБНОВЛЕННАЯ ЛОГИКА)
             // =========================================================================
             foreach (var (takeDamage, victimEntity) in SystemAPI.Query<RefRO<TakeDamageComponent>>().WithEntityAccess())
             {
                 Entity attacker = takeDamage.ValueRO.SourceEntity;
 
-                // СИТУАЦИЯ А: Меланхолик наносит урон (Стрельба) -> Вешаем микро-замедление на жертву
-                if (attacker != Entity.Null && SystemAPI.HasComponent<MelancholicTag>(attacker))
+                bool isMelancholicAttacking = attacker != Entity.Null && SystemAPI.HasComponent<MelancholicTag>(attacker);
+                bool isMelancholicAttacked = SystemAPI.HasComponent<MelancholicTag>(victimEntity);
+
+                // Если Меланхолик участвует в бою (бьет сам ИЛИ бьют его)
+                if (isMelancholicAttacking || isMelancholicAttacked)
                 {
-                    if (SystemAPI.HasComponent<SkillConfigComponent>(attacker))
+                    // Определяем, кто получает дебафф, а кто является источником навыка
+                    Entity debuffTarget = isMelancholicAttacking ? victimEntity : attacker;
+                    Entity melancholicEntity = isMelancholicAttacking ? attacker : victimEntity;
+
+                    if (debuffTarget == Entity.Null || !SystemAPI.HasComponent<EnemyTagComponent>(debuffTarget)) continue;
+                    if (!SystemAPI.HasComponent<SkillConfigComponent>(melancholicEntity)) continue;
+
+                    var config = SystemAPI.GetComponent<SkillConfigComponent>(melancholicEntity);
+
+                    // Если Меланхолик стреляет — дополнительно накладываем замедление
+                    if (isMelancholicAttacking)
                     {
-                        var config = SystemAPI.GetComponent<SkillConfigComponent>(attacker);
-                        
-                        ecb.AddComponent(victimEntity, new FrostSlowComponent
+                        ecb.AddComponent(debuffTarget, new FrostSlowComponent
                         {
                             SpeedMultiplier = config.FrostSlowMultiplier,
-                            TimeRemaining = 1.5f // Легкое замедление держится 1.5 секунды
+                            TimeRemaining = 1.5f 
                         });
                     }
-                }
 
-                // СИТУАЦИЯ Б: Меланхолик получает урон (Пассивка "Тяжесть бытия") -> Вешаем стак Апатии на обидчика
-                if (SystemAPI.HasComponent<MelancholicTag>(victimEntity) && attacker != Entity.Null)
-                {
-                    if (SystemAPI.HasComponent<EnemyTagComponent>(attacker) && SystemAPI.HasComponent<SkillConfigComponent>(victimEntity))
+                    // НАЧИСЛЕНИЕ СТАКА АПАТИИ (И за выстрел, и за получение урона)
+                    int currentStacks = 0;
+                    float freezeTimer = 0f;
+
+                    if (SystemAPI.HasComponent<ApathyDebuffComponent>(debuffTarget))
                     {
-                        var config = SystemAPI.GetComponent<SkillConfigComponent>(victimEntity);
-                        
-                        int currentStacks = 0;
-                        float freezeTimer = 0f;
+                        var existingApathy = SystemAPI.GetComponent<ApathyDebuffComponent>(debuffTarget);
+                        currentStacks = existingApathy.CurrentStacks;
+                        freezeTimer = existingApathy.FreezeTimer;
+                    }
 
-                        // Проверяем, есть ли уже дебафф на враге
-                        if (SystemAPI.HasComponent<ApathyDebuffComponent>(attacker))
+                    // Если враг еще не заморожен полностью — добавляем стак
+                    if (freezeTimer <= 0f)
+                    {
+                        currentStacks++;
+                        float lifeTimer = 5.0f; // Время до спадения стаков
+
+                        if (currentStacks >= config.ApathyMaxStacks)
                         {
-                            var existingApathy = SystemAPI.GetComponent<ApathyDebuffComponent>(attacker);
-                            currentStacks = existingApathy.CurrentStacks;
-                            freezeTimer = existingApathy.FreezeTimer;
+                            freezeTimer = config.FreezeDuration; 
+                            Debug.Log($"<color=#0000FF><b>[ЗАМОРОЗКА!]</b></color> Враг {debuffTarget.Index} накопил {currentStacks} стаков и ПРЕВРАТИЛСЯ В ЛЕД на {freezeTimer} сек!");
+                        }
+                        else
+                        {
+                            string reason = isMelancholicAttacking ? "получил пулю" : "ударил Меланхолика";
+                            Debug.Log($"<color=#ADD8E6>[АПАТИЯ]</color> Враг {debuffTarget.Index} {reason}. Стаки: {currentStacks} / {config.ApathyMaxStacks}");
                         }
 
-                        // Накидываем стак только если враг еще не превращен в ледяную глыбу
-                        if (freezeTimer <= 0f)
+                        ecb.AddComponent(debuffTarget, new ApathyDebuffComponent
                         {
-                            currentStacks++;
-                            float lifeTimer = 5.0f; // Стаки спадают через 5 секунд, если моб перестанет бить
-
-                            if (currentStacks >= config.ApathyMaxStacks)
-                            {
-                                freezeTimer = config.FreezeDuration; // ПОЛНАЯ ЗАМОРОЗКА!
-                            }
-
-                            ecb.AddComponent(attacker, new ApathyDebuffComponent
-                            {
-                                CurrentStacks = currentStacks,
-                                FreezeTimer = freezeTimer,
-                                DebuffLifeTimer = lifeTimer
-                            });
-                        }
+                            CurrentStacks = currentStacks,
+                            FreezeTimer = freezeTimer,
+                            DebuffLifeTimer = lifeTimer
+                        });
                     }
                 }
             }
@@ -82,8 +95,6 @@ namespace _Project.Scripts.ECS.Systems
             // =========================================================================
             // 2. ОБСЛУЖИВАНИЕ ТАЙМЕРОВ ДЕБАФФОВ
             // =========================================================================
-
-            // А. Затухание ледяного замедления от выстрелов
             foreach (var (slow, entity) in SystemAPI.Query<RefRW<FrostSlowComponent>>().WithEntityAccess())
             {
                 slow.ValueRW.TimeRemaining -= deltaTime;
@@ -93,7 +104,6 @@ namespace _Project.Scripts.ECS.Systems
                 }
             }
 
-            // Б. Контроль Апатии (Заморозка и спадение стаков)
             foreach (var (apathy, entity) in SystemAPI.Query<RefRW<ApathyDebuffComponent>>().WithEntityAccess())
             {
                 if (apathy.ValueRO.FreezeTimer > 0f)
@@ -101,7 +111,7 @@ namespace _Project.Scripts.ECS.Systems
                     apathy.ValueRW.FreezeTimer -= deltaTime;
                     if (apathy.ValueRO.FreezeTimer <= 0f)
                     {
-                        // Заморозка истекла — враг оттаивает, стаки сбрасываются
+                        Debug.Log($"<color=#87CEFA>[ОТТЕПЕЛЬ]</color> Враг {entity.Index} оттаял! Стаки сброшены.");
                         ecb.RemoveComponent<ApathyDebuffComponent>(entity);
                     }
                 }
@@ -110,7 +120,6 @@ namespace _Project.Scripts.ECS.Systems
                     apathy.ValueRW.DebuffLifeTimer -= deltaTime;
                     if (apathy.ValueRO.DebuffLifeTimer <= 0f)
                     {
-                        // Время жизни стаков вышло — они испаряются
                         ecb.RemoveComponent<ApathyDebuffComponent>(entity);
                     }
                 }
