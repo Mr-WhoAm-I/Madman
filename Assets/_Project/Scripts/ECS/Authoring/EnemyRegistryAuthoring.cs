@@ -2,6 +2,7 @@ using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using _Project.Scripts.Data;
+using _Project.Scripts.Data.Core;
 
 namespace _Project.Scripts.ECS.Authoring
 {

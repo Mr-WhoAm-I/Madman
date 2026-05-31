@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
-using _Project.Scripts.Network; 
+using _Project.Scripts.Network;
+using _Project.Scripts.Network.Managers;
 using _Project.Scripts.UI;      
 
 namespace _Project.Scripts.Hub

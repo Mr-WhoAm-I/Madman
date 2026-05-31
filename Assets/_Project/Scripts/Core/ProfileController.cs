@@ -2,6 +2,7 @@ using System; // <-- Добавить обязательно
 using System.Linq;
 using UnityEngine;
 using _Project.Scripts.Data;
+using _Project.Scripts.Data.Core;
 
 namespace _Project.Scripts.Core
 {

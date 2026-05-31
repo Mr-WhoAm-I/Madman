@@ -3,6 +3,7 @@ using TMPro; // Обязательно для TextMeshPro
 using UnityEngine.UI; // Обязательно для UI-слайдеров
 using _Project.Scripts.Network;
 using _Project.Scripts.Core;
+using _Project.Scripts.Network.Managers;
 using _Project.Scripts.UI;
 
 namespace _Project.Scripts.Hub

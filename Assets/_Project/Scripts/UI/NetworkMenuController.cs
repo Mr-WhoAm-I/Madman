@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using TMPro;
 using _Project.Scripts.Core;
 using _Project.Scripts.Network;
+using _Project.Scripts.Network.Managers;
 using UnityEngine.InputSystem;
 
 namespace _Project.Scripts.UI

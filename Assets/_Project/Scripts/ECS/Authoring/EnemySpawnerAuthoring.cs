@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
 using _Project.Scripts.ECS.Components;
+using _Project.Scripts.ECS.Components.Enemies;
 using UnityEngine.Serialization;
 
 namespace _Project.Scripts.ECS.Authoring

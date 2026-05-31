@@ -2,8 +2,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using _Project.Scripts.Data;
+using _Project.Scripts.Data.Shop;
 using _Project.Scripts.Network;
-using _Project.Scripts.Gameplay; // Добавлено
+using _Project.Scripts.Gameplay;
+using _Project.Scripts.Network.Bridges; // Добавлено
 
 namespace _Project.Scripts.UI
 {

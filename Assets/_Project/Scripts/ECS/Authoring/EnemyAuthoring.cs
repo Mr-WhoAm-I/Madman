@@ -1,6 +1,8 @@
 using Unity.Entities;
 using UnityEngine;
 using _Project.Scripts.ECS.Components;
+using _Project.Scripts.ECS.Components.Combat;
+using _Project.Scripts.ECS.Components.Enemies;
 using Unity.Mathematics;
 using Unity.Rendering;
 

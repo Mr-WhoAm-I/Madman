@@ -2,8 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using _Project.Scripts.Data;
+using _Project.Scripts.Data.Shop;
 using _Project.Scripts.Network;
-using _Project.Scripts.ECS.Components; // Для получения SkillConfigComponent
+using _Project.Scripts.ECS.Components;
+using _Project.Scripts.ECS.Components.Skills;
+using _Project.Scripts.Network.Bridges; // Для получения SkillConfigComponent
 
 namespace _Project.Scripts.Gameplay
 {
