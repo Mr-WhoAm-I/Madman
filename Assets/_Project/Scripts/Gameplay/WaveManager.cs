@@ -9,6 +9,7 @@ using _Project.Scripts.Data;
 using _Project.Scripts.ECS.Components;
 using _Project.Scripts.ECS.Authoring;
 using _Project.Scripts.Core;
+using _Project.Scripts.Network;
 using _Project.Scripts.UI;
 
 namespace _Project.Scripts.Gameplay
@@ -188,12 +189,30 @@ namespace _Project.Scripts.Gameplay
 
             if (isOpen)
             {
-                // Принудительно открываем окно магазина
+                // --- ИНИЦИАЛИЗАЦИЯ СЕССИИ МАГАЗИНА ---
+                int maxRerolls = 1; // Базовое количество рероллов (1 бесплатный)
+                
+                if (PlayerNetworkBridge.LocalPlayer != null && PlayerNetworkBridge.LocalPlayer.Object.IsValid)
+                {
+                    var player = PlayerNetworkBridge.LocalPlayer;
+                    if (player.EntityManager.Exists(player.PlayerEntity))
+                    {
+                        var config = player.EntityManager.GetComponentData<SkillConfigComponent>(player.PlayerEntity);
+                        // Если игрок прокачал перк на рероллы, прибавляем их к базовому
+                        maxRerolls += config.MaxRerolls; 
+                    }
+                }
+                
+                if (LocalShopManager.Instance != null)
+                {
+                    LocalShopManager.Instance.OnShopPhaseStarted(maxRerolls);
+                }
+                // ------------------------------------
+
                 HUDManager.Instance.OpenWindow(UIWindowType.Shop);
             }
             else
             {
-                // Принудительно закрываем текущее окно (чтобы выкинуть игроков из магазина перед боем)
                 HUDManager.Instance.CloseCurrentWindow(); 
             }
         }

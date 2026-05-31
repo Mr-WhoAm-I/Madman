@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 using _Project.Scripts.Gameplay;
 using _Project.Scripts.Network;
 
@@ -11,15 +13,26 @@ namespace _Project.Scripts.UI
         [SerializeField] private GameObject cardPrefab;
         [SerializeField] private Transform cardsContainer;
 
+        [Header("Управление Магазином (Реролл)")]
+        [SerializeField] private Button rerollButton;
+        [SerializeField] private TextMeshProUGUI rerollButtonText;
+
         private readonly List<GameObject> _spawnedCards = new();
+
+        private void Awake()
+        {
+            if (rerollButton != null)
+            {
+                // Подписываемся на кнопку обновления магазина
+                rerollButton.onClick.AddListener(OnRerollClicked);
+            }
+        }
 
         public override void Open()
         {
             base.Open();
-            
-            // Гарантированно чистим витрину перед генерацией новых предложений
-            ClearOldCards();
-            GenerateOffers();
+            DrawOffers();
+            RefreshUI();
         }
 
         public override void Close()
@@ -28,27 +41,55 @@ namespace _Project.Scripts.UI
             ClearOldCards();
         }
 
-        private void GenerateOffers()
+        // Метод для отрисовки ТЕКУЩЕГО состояния витрины
+        private void DrawOffers()
         {
-            if (PlayerNetworkBridge.LocalPlayer == null || LocalShopManager.Instance == null) return;
+            ClearOldCards();
 
-            // Запрашиваем у бэкенда 3 случайные карточки с учетом взвешенного рандома
-            var offers = LocalShopManager.Instance.GenerateShopOffers(PlayerNetworkBridge.LocalPlayer);
+            if (LocalShopManager.Instance == null) return;
 
-            foreach (var upgradeData in offers)
+            // Берем уже сформированные предложения (они сохраняются между открытиями окна)
+            var offers = LocalShopManager.Instance.CurrentOffers;
+
+            foreach (var offer in offers)
             {
-                if (upgradeData == null) continue;
+                if (offer == null) continue;
 
-                // Спавним карточку внутри нашего UI-контейнера
                 var cardInstance = Instantiate(cardPrefab, cardsContainer);
                 var cardUI = cardInstance.GetComponent<UpgradeCardUI>();
                 
                 if (cardUI != null)
                 {
-                    cardUI.Setup(upgradeData);
+                    // Передаем ссылку на это окно, чтобы карточка могла вызвать RefreshUI при покупке
+                    cardUI.Setup(offer, this); 
                 }
                 
                 _spawnedCards.Add(cardInstance);
+            }
+        }
+
+        // Обновляет состояние интерфейса (например, текст кнопки реролла)
+        public void RefreshUI()
+        {
+            if (LocalShopManager.Instance == null) return;
+
+            if (rerollButton != null && rerollButtonText != null)
+            {
+                int rerolls = LocalShopManager.Instance.AvailableRerolls;
+                rerollButtonText.text = $"Обновить ({rerolls})";
+                
+                // Делаем кнопку неактивной, если рероллы кончились
+                rerollButton.interactable = rerolls > 0;
+            }
+        }
+
+        private void OnRerollClicked()
+        {
+            if (LocalShopManager.Instance != null && LocalShopManager.Instance.TryReroll())
+            {
+                // Если реролл успешен — перерисовываем витрину
+                DrawOffers();
+                RefreshUI();
             }
         }
 

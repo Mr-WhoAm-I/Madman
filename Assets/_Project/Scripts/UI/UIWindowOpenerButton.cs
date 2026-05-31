@@ -1,3 +1,4 @@
+using _Project.Scripts.Gameplay;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,16 +32,18 @@ namespace _Project.Scripts.UI
 
         private void OnButtonClicked()
         {
-            if (HUDManager.Instance != null)
+            if (HUDManager.Instance == null) return;
+            // ЗАТЫЧКА ДЛЯ МАГАЗИНА: Нельзя открыть вне фазы
+            if (targetWindow == UIWindowType.Shop)
             {
-                // Вызываем уже готовую логику из HUDManager
-                Debug.Log("[UIWindowOpenerButton] НАЖАТА");
-                HUDManager.Instance.ToggleWindow(targetWindow);
+                if (WaveManager.Instance == null || !WaveManager.Instance.IsShopPhase)
+                {
+                    Debug.LogWarning("[UI] Попытка открыть магазин вне фазы покупок!");
+                    return; // Блокируем открытие
+                }
             }
-            else
-            {
-                Debug.LogWarning("[UIWindowOpenerButton] HUDManager не найден на сцене!");
-            }
+                
+            HUDManager.Instance.ToggleWindow(targetWindow);
         }
     }
 }

@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using _Project.Scripts.Data;
 using _Project.Scripts.Network;
+using _Project.Scripts.Gameplay; // Добавлено
 
 namespace _Project.Scripts.UI
 {
@@ -16,77 +17,86 @@ namespace _Project.Scripts.UI
         public Image backgroundRarityImage; 
         public Button buyButton;
 
-        private UpgradeData _currentData;
+        private ShopOffer _currentOffer;
+        private ShopWindowUI _parentWindow; // Ссылка на окно, чтобы обновить UI после покупки
 
-        public void Setup(UpgradeData data)
+        public void Setup(ShopOffer offer, ShopWindowUI parentWindow)
         {
-            _currentData = data;
+            _currentOffer = offer;
+            _parentWindow = parentWindow;
+            var data = offer.Data;
             
-            // Заполняем визуал из Scriptable Object
             if (titleText != null) titleText.text = data.displayName;
             if (descriptionText != null) descriptionText.text = data.description;
-            if (costText != null) costText.text = data.baseCost.ToString();
             
-            // Если иконка назначена — включаем, иначе можно выключить компонент
-            if (iconImage != null)
+            // --- ОТОБРАЖЕНИЕ ЦЕНЫ СО СКИДКОЙ ---
+            if (costText != null)
             {
-                if (data.icon != null)
+                if (data.baseCost == 0)
                 {
-                    iconImage.sprite = data.icon;
-                    iconImage.enabled = true;
+                    costText.text = "<color=#00FF00>БЕСПЛАТНО</color>";
+                }
+                else if (offer.DiscountPercent > 0)
+                {
+                    // Зачеркиваем старую цену серым, пишем новую зеленую и показываем % скидки
+                    costText.text = $"<color=#808080><s>{data.baseCost}</s></color> <color=#32CD32>{offer.FinalCost}</color> <size=60%><color=#FFD700>(-{offer.DiscountPercent}%)</color></size>";
                 }
                 else
                 {
-                    iconImage.enabled = false;
+                    costText.text = offer.FinalCost.ToString();
                 }
+            }
+            
+            if (iconImage != null && data.icon != null)
+            {
+                iconImage.sprite = data.icon;
+                iconImage.enabled = true;
             }
             
             SetRarityColor(data.rarity);
 
-            // Очищаем старые подписки (защита от пулинга) и вешаем новую
             if (buyButton != null)
             {
                 buyButton.onClick.RemoveAllListeners();
-                buyButton.onClick.AddListener(OnBuyClicked);
-                buyButton.interactable = true; // Сбрасываем состояние кнопки
+                
+                if (offer.IsSold)
+                {
+                    buyButton.interactable = false;
+                    costText.text = "<color=#FF0000>ПРОДАНО</color>";
+                }
+                else
+                {
+                    buyButton.interactable = true;
+                    buyButton.onClick.AddListener(OnBuyClicked);
+                }
             }
         }
 
         private void SetRarityColor(UpgradeRarity rarity)
         {
             if (backgroundRarityImage == null) return;
-            
-            // Простейшая цветовая дифференциация штанов. 
-            // Позже можно заменить на красивые спрайты/материалы.
             switch (rarity)
             {
-                case UpgradeRarity.Ordinary: 
-                    backgroundRarityImage.color = new Color(0.7f, 0.7f, 0.7f); // Серый
-                    break;
-                case UpgradeRarity.Experimental: 
-                    backgroundRarityImage.color = new Color(0.2f, 0.8f, 0.2f); // Зеленый
-                    break;
-                case UpgradeRarity.Banned: 
-                    backgroundRarityImage.color = new Color(0.6f, 0.2f, 0.8f); // Фиолетовый
-                    break;
-                case UpgradeRarity.Anomalous: 
-                    backgroundRarityImage.color = new Color(0.9f, 0.2f, 0.2f); // Красный
-                    break;
+                case UpgradeRarity.Ordinary: backgroundRarityImage.color = new Color(0.7f, 0.7f, 0.7f); break;
+                case UpgradeRarity.Experimental: backgroundRarityImage.color = new Color(0.2f, 0.8f, 0.2f); break;
+                case UpgradeRarity.Banned: backgroundRarityImage.color = new Color(0.6f, 0.2f, 0.8f); break;
+                case UpgradeRarity.Anomalous: backgroundRarityImage.color = new Color(0.9f, 0.2f, 0.2f); break;
             }
         }
 
         private void OnBuyClicked()
         {
-            if (_currentData == null || PlayerNetworkBridge.LocalPlayer == null) return;
+            if (_currentOffer == null || PlayerNetworkBridge.LocalPlayer == null) return;
             
-            // Отправляем RPC на сервер с запросом покупки
-            PlayerNetworkBridge.LocalPlayer.Rpc_RequestPurchaseUpgrade(_currentData.upgradeID, _currentData.baseCost);
+            // Отправляем FinalCost (со скидкой), а не базовую!
+            PlayerNetworkBridge.LocalPlayer.Rpc_RequestPurchaseUpgrade(_currentOffer.Data.upgradeID, _currentOffer.FinalCost);
             
-            // Визуально отключаем кнопку локально, чтобы игрок не спамил кликами
-            if (buyButton != null)
-            {
-                buyButton.interactable = false;
-            }
+            // Помечаем локально как проданное и обновляем витрину
+            _currentOffer.IsSold = true;
+            buyButton.interactable = false;
+            
+            // Сообщаем окну магазина, что нужно перерисовать кнопки
+            _parentWindow.RefreshUI(); 
         }
     }
 }

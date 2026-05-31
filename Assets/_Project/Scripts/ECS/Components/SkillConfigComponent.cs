@@ -54,6 +54,8 @@ namespace _Project.Scripts.ECS.Components
         public float CritDamage;
         public float MagnetRadius;
         public float CooldownReduction;
+        public int MaxRerolls;
+        public float MinDiscount;
 
         // --- ОРУЖЕЙНЫЕ МОДИФИКАТОРЫ ---
         public int PierceCount;

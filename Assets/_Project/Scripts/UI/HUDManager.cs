@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using _Project.Scripts.Gameplay;
 using TMPro;
 
 namespace _Project.Scripts.UI
@@ -192,6 +193,7 @@ namespace _Project.Scripts.UI
         
         private void OnToggleShopPressed(InputAction.CallbackContext context)
         {
+            if (!WaveManager.Instance.IsShopPhase) return;
             if (IsUserTyping()) return;
             ToggleWindow(UIWindowType.Shop);
         }
