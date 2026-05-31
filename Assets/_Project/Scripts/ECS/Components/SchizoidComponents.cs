@@ -29,13 +29,12 @@ namespace _Project.Scripts.ECS.Components
     // Компонент, управляющий поведением самого Клона в ECS
     public struct CloneComponent : IComponentData
     {
-        public float TimeLeft;            // Сколько секунд клон еще проживет до взрыва
-        public float2 RunDirection;       // Случайный вектор, куда бежит голограмма
-        public float BaseExplosionDamage;  // Сила взрыва при детонации
-        public float ExplosionRadius;      // Радиус поражения взрыва
-
-        // Буферные флаги под будущие модификаторы
-        public bool IsArmed;              // Умеет ли копия стрелять (перк "Вооруженная проекция")
-        public bool LeavesToxicCloud;     // Создаст ли ядовитый дым (перк "Токсичная личность")
+        public Entity OwnerEntity; // Ссылка на настоящего игрока
+    }
+    
+    public struct PoisonDebuffComponent : IComponentData
+    {
+        public float DPS;
+        public Entity OwnerEntity; // Владелец, чтобы засчитать убийство
     }
 }

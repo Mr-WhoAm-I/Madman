@@ -609,10 +609,16 @@ namespace _Project.Scripts.Network
                 case UpgradeType.TurretHealAura: config.TurretHealAura = upgrade.value; break;
 
                 // Классовые: Шизоид
-                case UpgradeType.MaxInstability: config.InstabilityMaxStacks = (int)upgrade.value; break;
+                case UpgradeType.MaxInstability: config.MaxInstability = (int)upgrade.value; break;
                 case UpgradeType.CloneRadiusMult: config.CloneRadiusMult = upgrade.value; break;
                 case UpgradeType.MiniClones: config.MiniClones = (int)upgrade.value; break;
-                case UpgradeType.InvisDuration: config.InvisibilityDuration += upgrade.value; break;
+                case UpgradeType.InvisDuration: config.InvisDuration = upgrade.value; break;
+                case UpgradeType.CloneToxicCloudDPS: config.CloneToxicCloudDPS = upgrade.value; break;
+                case UpgradeType.CloneShootingMult: config.CloneShootingMult = upgrade.value; break;
+                case UpgradeType.ShadowStrikeMult: config.ShadowStrikeMult = upgrade.value; break;
+                case UpgradeType.ClonePoisonDPS: config.ClonePoisonDPS = upgrade.value; break;
+                case UpgradeType.InvisSpeedMult: config.InvisSpeedMult = upgrade.value; break;
+                case UpgradeType.KillCooldownReduction: config.KillCooldownReduction = upgrade.value; break;
 
                 // Классовые: Меланхолик
                 case UpgradeType.FreezeDuration: config.FreezeDuration = upgrade.value; break;

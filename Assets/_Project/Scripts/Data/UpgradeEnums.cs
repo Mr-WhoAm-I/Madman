@@ -20,6 +20,8 @@ namespace _Project.Scripts.Data
         CritDamage,         // +X% урон крита
         MagnetRadius,       // +X к радиусу сбора лута
         CooldownReduction,  // -X% времени перезарядки навыка
+        MaxRerolls,         // Увеличение количества рероллов (база = 1)
+        MinDiscount,        // Увеличение минимальной скидки (0.1, 0.2 и т.д.)
         
         // === ОРУЖЕЙНЫЕ ===
         PierceCount,        // +X пробитий насквозь
@@ -40,6 +42,12 @@ namespace _Project.Scripts.Data
         CloneRadiusMult,    // Множитель радиуса взрыва клона
         MiniClones,         // Спавн мини-клонов после взрыва
         InvisDuration,      // Увеличение времени невидимости
+        CloneToxicCloudDPS,   // Урон ядовитого облака клона в секунду
+        CloneShootingMult,    // Множитель урона клона от базового (включает стрельбу)
+        ShadowStrikeMult,     // Множитель урона для первого выстрела из инвиза
+        ClonePoisonDPS,       // Урон от яда при попадании пули клона (Истязание)
+        InvisSpeedMult,       // Множитель скорости бега в инвизе (Паркур)
+        KillCooldownReduction, // Сокращение КД ульты за убийство в секундах
         
         // === КЛАССОВЫЕ: МЕЛАНХОЛИК ===
         FreezeDuration,     // Увеличение длительности заморозки
@@ -50,8 +58,6 @@ namespace _Project.Scripts.Data
         
         // === КЛАССОВЫЕ: ИСТЕРИК ===
         FuryThreshold,       // Изменение порога ХП для входа в Ярость
-        MaxRerolls,         // Увеличение количества рероллов (база = 1)
-        MinDiscount,        // Увеличение минимальной скидки (0.1, 0.2 и т.д.)
         ForceFuryOnUltimate, // Флаг для навыка "Перегрузка"
         TornadoMultiplier    // Множитель для навыка "Смерч"
     }

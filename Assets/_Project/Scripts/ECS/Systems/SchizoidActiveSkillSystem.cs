@@ -27,12 +27,26 @@ namespace _Project.Scripts.ECS.Systems
                     skillState.ValueRW.CurrentCooldown = skillState.ValueRO.MaxCooldown;
                 }
 
+                // --- ЧТЕНИЕ ПЕРКОВ: ДЛИТЕЛЬНОСТЬ И ПАРКУР ---
+                float totalInvisDuration = config.ValueRO.InvisibilityDuration + config.ValueRO.InvisDuration;
+                float speedMult = config.ValueRO.InvisSpeedMult > 0f ? config.ValueRO.InvisSpeedMult : 1.0f;
+
                 ecb.AddComponent(entity, new InvisibilityStateComponent
                 {
-                    TimeRemaining = config.ValueRO.InvisibilityDuration,
-                    SpeedMultiplier = 1.0f, 
+                    TimeRemaining = totalInvisDuration,
+                    SpeedMultiplier = speedMult, 
                     IsFirstShotBonusActive = true 
                 });
+                
+                if (config.ValueRO.InvisDuration > 0f)
+                {
+                    UnityEngine.Debug.Log($"<color=#9400D3>[ИНВИЗ]</color> Длительность увеличена до {totalInvisDuration} сек!");
+                }
+                
+                if (config.ValueRO.InvisSpeedMult > 0f)
+                {
+                    UnityEngine.Debug.Log($"<color=#9400D3>[ПАРКУР]</color> Скорость в инвизе увеличена в {speedMult} раз!");
+                }
 
                 // ИСПРАВЛЕНО: Рассчитываем вектор направления на основе инпута джойстика
                 var aimDir = request.ValueRO.AimDirection;
@@ -62,6 +76,13 @@ namespace _Project.Scripts.ECS.Systems
                     invis.ValueRW.TimeRemaining -= deltaTime;
                     if (invis.ValueRO.TimeRemaining <= 0f)
                     {
+                        // Если таймер вышел естественно — передаем бафф на следующий выстрел!
+                        if (invis.ValueRO.IsFirstShotBonusActive)
+                        {
+                            ecb.AddComponent<ShadowStrikeBuffComponent>(entity);
+                            UnityEngine.Debug.Log("<color=#9400D3>[ИНВИЗ]</color> Инвиз спал. Готов Удар из тени!");
+                        }
+                        
                         ecb.RemoveComponent<InvisibilityStateComponent>(entity);
                     }
                 }

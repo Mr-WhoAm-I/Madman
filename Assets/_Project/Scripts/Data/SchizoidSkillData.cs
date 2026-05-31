@@ -35,19 +35,7 @@ namespace _Project.Scripts.Data
         [Tooltip("Базовый урон от взрыва клона")]
         public float cloneExplosionDamage = 150f;
         
-        // Переменная effectRadius (радиус взрыва копии) наследуется из базового класса SkillData!
-
-        [Header("Будущие улучшения (Параметризация перков)")]
-        [Tooltip("Дополнительный множитель урона для первого выстрела из инвиза (Удар из тени: +200% = 3.0f)")]
-        public float shadowStrikeDamageMultiplier = 3.0f;
-
-        [Tooltip("Множитель скорости бега в инвизе (Паркур: +40% = 1.4f)")]
-        public float invisibilitySpeedMultiplier = 1.4f;
-
         [Tooltip("Множитель урона выстрелов клона (Вооруженная проекция: 20% = 0.2f)")]
         public float cloneDamagePercentage = 0.2f;
-
-        [Tooltip("Урон в секунду от ядовитого облака (Токсичная личность)")]
-        public float toxicCloudDamagePerSecond = 25f;
     }
 }

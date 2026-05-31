@@ -91,30 +91,43 @@ namespace _Project.Scripts.ECS.Systems
             {
                 float damageAmount = takeDamage.ValueRO.Amount;
                 
-                // ИГНОРИРУЕМ, ЕСЛИ УРОН БЫЛ ПОГЛОЩЕН ЩИТОМ (например, если мобам тоже дадим щиты)
                 if (damageAmount > 0f)
                 {
                     enemyHealth.ValueRW.CurrentHealth -= damageAmount;
-                    
-                    // === МЕХАНИКА: КРИО-СНАРЯДЫ ТУРЕЛИ ===
                     Entity attacker = takeDamage.ValueRO.SourceEntity;
+                    
+                    // === МЕХАНИКА: ИСТЯЗАНИЕ (Ядовитые пули клона) ===
+                    if (attacker != Entity.Null && state.EntityManager.HasComponent<CloneComponent>(attacker))
+                    {
+                        var cloneComp = state.EntityManager.GetComponentData<CloneComponent>(attacker);
+                        if (cloneComp.OwnerEntity != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(cloneComp.OwnerEntity))
+                        {
+                            var config = state.EntityManager.GetComponentData<SkillConfigComponent>(cloneComp.OwnerEntity);
+                            if (config.ClonePoisonDPS > 0f)
+                            {
+                                ecb.AddComponent(entity, new PoisonDebuffComponent 
+                                { 
+                                    DPS = config.ClonePoisonDPS,
+                                    OwnerEntity = cloneComp.OwnerEntity
+                                });
+                            }
+                        }
+                    }
+
+                    // === МЕХАНИКА: КРИО-СНАРЯДЫ ТУРЕЛИ ===
                     if (attacker != Entity.Null && state.EntityManager.HasComponent<TurretComponent>(attacker))
                     {
                         var turretComp = state.EntityManager.GetComponentData<TurretComponent>(attacker);
-                        
-                        // Проверяем, прокачал ли владелец турели перк на заморозку
                         if (turretComp.OwnerEntity != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(turretComp.OwnerEntity))
                         {
                             var config = state.EntityManager.GetComponentData<SkillConfigComponent>(turretComp.OwnerEntity);
                             if (config.TurretCryo)
                             {
-                                // Накидываем или обновляем дебафф заморозки на враге
                                 ecb.AddComponent(entity, new CryoDebuffComponent 
                                 { 
                                     SpeedMultiplier = turretComp.CryoMultiplier, 
                                     Timer = turretComp.CryoDuration 
                                 });
-                                Debug.Log($"<color=#00FFFF>[КРИО-СНАРЯДЫ]</color> Враг {entity.Index} заморожен на {turretComp.CryoDuration} сек. (Скорость x{turretComp.CryoMultiplier})");
                             }
                         }
                     }
@@ -123,9 +136,8 @@ namespace _Project.Scripts.ECS.Systems
                     if (attacker != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(attacker))
                     {
                         var config = SystemAPI.GetComponent<SkillConfigComponent>(attacker);
-                        float totalLifesteal = config.Lifesteal; // Базовый вампиризм
+                        float totalLifesteal = config.Lifesteal; 
 
-                        // Если это Истерик в Ярости, плюсуем классовый бонус
                         if (SystemAPI.HasComponent<HystericFuryStateTag>(attacker))
                         {
                             totalLifesteal += config.FuryLifesteal;
@@ -136,15 +148,41 @@ namespace _Project.Scripts.ECS.Systems
                             var attackerHealthLink = state.EntityManager.GetComponentObject<HealthLinkComponent>(attacker);
                             if (attackerHealthLink.Value != null && attackerHealthLink.Value.HasStateAuthority)
                             {
-                                float healAmount = damageAmount * totalLifesteal;
-                                attackerHealthLink.Value.Heal(healAmount);
+                                attackerHealthLink.Value.Heal(damageAmount * totalLifesteal);
                             }
                         }
                     }
 
+                    // === СМЕРТЬ ВРАГА И КРОВАВАЯ ЖАТВА ===
                     if (enemyHealth.ValueRO.CurrentHealth <= 0)
                     {
                         ecb.AddComponent<DeathTagComponent>(entity);
+
+                        // Убийцей может быть сам игрок, его турель или клон. Ищем настоящего владельца:
+                        Entity realAttacker = attacker;
+                        if (attacker != Entity.Null)
+                        {
+                            if (state.EntityManager.HasComponent<TurretComponent>(attacker))
+                                realAttacker = state.EntityManager.GetComponentData<TurretComponent>(attacker).OwnerEntity;
+                            else if (state.EntityManager.HasComponent<CloneComponent>(attacker))
+                                realAttacker = state.EntityManager.GetComponentData<CloneComponent>(attacker).OwnerEntity;
+                        }
+
+                        // Срезаем КД ульты
+                        if (realAttacker != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(realAttacker))
+                        {
+                            var config = state.EntityManager.GetComponentData<SkillConfigComponent>(realAttacker);
+                            if (config.KillCooldownReduction > 0f && state.EntityManager.HasComponent<SkillStateComponent>(realAttacker))
+                            {
+                                var skillState = state.EntityManager.GetComponentData<SkillStateComponent>(realAttacker);
+                                if (skillState.CurrentCooldown > 0f)
+                                {
+                                    skillState.CurrentCooldown = Unity.Mathematics.math.max(0f, skillState.CurrentCooldown - config.KillCooldownReduction);
+                                    state.EntityManager.SetComponentData(realAttacker, skillState);
+                                    Debug.Log($"<color=#8B0000>[КРОВАВАЯ ЖАТВА]</color> КД ульты снижено на {config.KillCooldownReduction} сек!");
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -29,15 +29,25 @@ namespace _Project.Scripts.ECS.Components
         public bool TurretCryo;  
         public float TurretHealAura; // Сколько ХП в секунду восстанавливает турель (0 = не лечит)
 
-        // Параметры Шизоида
+        // Параметры Шизоида (Базовые)
         public float InstabilityTimePerStack;
         public int InstabilityMaxStacks;
         public float InstabilityDamagePerStack;
         public float InvisibilityDuration;
         public float CloneExplosionDamage;
         public float CloneExplosionRadius;
-        public float CloneRadiusMult; 
-        public int MiniClones;        
+        
+        // --- 10 ПЕРКОВ ИЗ МАГАЗИНА (ШИЗОИД) ---
+        public int MaxInstability;       // Дополнительные стаки (будем прибавлять к базовым)
+        public float CloneRadiusMult;    // Множитель радиуса
+        public int MiniClones;           // Количество мини-клонов
+        public float InvisDuration;      // Доп. время инвиза
+        public float CloneToxicCloudDPS; // Урон облака
+        public float CloneShootingMult;  // Множитель урона клона
+        public float ShadowStrikeMult;   // Урон из тени
+        public float ClonePoisonDPS;     // Урон яда от пуль
+        public float InvisSpeedMult;     // Множитель скорости
+        public float KillCooldownReduction; // Срез КД ульты
         
         // Параметры Меланхолика
         public float FrostSlowMultiplier;

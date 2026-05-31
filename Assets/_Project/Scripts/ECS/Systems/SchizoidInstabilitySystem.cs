@@ -28,8 +28,11 @@ namespace _Project.Scripts.ECS.Systems
 
                 if (isEntityInvisible || isSafeFromDamage)
                 {
-                    // Если мы еще не достигли лимита (например, макс. 4 стака)
-                    if (instability.ValueRO.CurrentStacks < config.ValueRO.InstabilityMaxStacks)
+                    // Складываем базовый лимит и бонус от перков
+                    int totalMaxStacks = config.ValueRO.InstabilityMaxStacks + config.ValueRO.MaxInstability;
+
+                    // Если мы еще не достигли расширенного лимита
+                    if (instability.ValueRO.CurrentStacks < totalMaxStacks)
                     {
                         instability.ValueRW.Timer += deltaTime;
 

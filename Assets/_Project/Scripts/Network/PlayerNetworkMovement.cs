@@ -21,7 +21,6 @@ namespace _Project.Scripts.Network
                 LocalPlayerHealth = GetComponent<Health>();
             }
             
-            // Кешируем ссылку на мост, чтобы читать ECS
             _bridge = GetComponent<PlayerNetworkBridge>();
         }
 
@@ -29,38 +28,40 @@ namespace _Project.Scripts.Network
         {
             if (GetComponent<Health>().IsDead) return;
 
-            // Флаг для удобной проверки валидности ECS-сущности
             bool hasBridge = _bridge != null && _bridge.EntityManager != default && _bridge.EntityManager.Exists(_bridge.PlayerEntity);
 
-            // 1. Проверяем, есть ли мост и жива ли сущность в ECS
             if (hasBridge)
             {
-                // 2. СПРАШИВАЕМ ECS: Мы сейчас в состоянии рывка?
                 if (_bridge.EntityManager.HasComponent<DashComponent>(_bridge.PlayerEntity))
                 {
-                    // Читаем параметры рывка, которые задала HystericSkillSystem
                     var dash = _bridge.EntityManager.GetComponentData<DashComponent>(_bridge.PlayerEntity);
-                    
-                    // Летим!
                     var dashMove = new Vector3(dash.Direction.x, dash.Direction.y, 0f);
                     transform.position += dashMove * dash.Speed * Runner.DeltaTime;
                     
-                    // Обновляем локальную позицию и ВЫХОДИМ ИЗ МЕТОДА, чтобы обычный бег не перебил рывок
                     UpdateLocalPosition();
                     return; 
                 }
             }
 
-            // 3. ОБЫЧНОЕ ДВИЖЕНИЕ (если рывка нет)
             if (GetInput(out NetworkInputData data))
             {
                 float currentSpeed = speed;
 
-                // === ААА-МЕХАНИКА: ПАССИВКА ИСТЕРИКА (Ускорение) ===
-                if (hasBridge && _bridge.EntityManager.HasComponent<HystericFuryStateTag>(_bridge.PlayerEntity))
+                if (hasBridge)
                 {
-                    var config = _bridge.EntityManager.GetComponentData<SkillConfigComponent>(_bridge.PlayerEntity);
-                    currentSpeed *= config.FurySpeedMultiplier;
+                    // === ААА-МЕХАНИКА: ПАССИВКА ИСТЕРИКА (Ускорение) ===
+                    if (_bridge.EntityManager.HasComponent<HystericFuryStateTag>(_bridge.PlayerEntity))
+                    {
+                        var config = _bridge.EntityManager.GetComponentData<SkillConfigComponent>(_bridge.PlayerEntity);
+                        currentSpeed *= config.FurySpeedMultiplier;
+                    }
+
+                    // === МЕХАНИКА: ПАРКУР ШИЗОИДА (Скорость в инвизе) ===
+                    if (_bridge.EntityManager.HasComponent<InvisibilityStateComponent>(_bridge.PlayerEntity))
+                    {
+                        var invis = _bridge.EntityManager.GetComponentData<InvisibilityStateComponent>(_bridge.PlayerEntity);
+                        currentSpeed *= invis.SpeedMultiplier; // Умножаем на наш 1.4 (или другой бонус)
+                    }
                 }
 
                 var moveDirection = new Vector3(data.MovementInput.x, data.MovementInput.y, 0f);

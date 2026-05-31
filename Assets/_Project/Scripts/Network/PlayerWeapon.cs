@@ -13,14 +13,14 @@ namespace _Project.Scripts.Network
     public class PlayerWeapon : NetworkBehaviour
     {
         [Header("Экипированное оружие")]
-        public WeaponData[] equippedWeapons = new WeaponData[2]; //
+        public WeaponData[] equippedWeapons = new WeaponData[2]; 
 
         [Networked] private TickTimer Timer0 { get; set; }
         [Networked] private TickTimer Timer1 { get; set; }
         
         private EntityQuery _enemyQuery;
         private PlayerManager _playerManager;
-        private bool _isClone; // Флаг: является ли этот объект клоном Шизоида
+        private bool _isClone; 
 
         public override void Spawned()
         {
@@ -29,7 +29,6 @@ namespace _Project.Scripts.Network
             if (!HasStateAuthority) return;
             _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform));
                 
-            // Проверяем, кто мы — игрок или клон
             _isClone = GetComponent<CloneNetworkBridge>() != null;
 
             ValidateWeapons();
@@ -58,12 +57,48 @@ namespace _Project.Scripts.Network
             }
         }
 
+        // --- ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Чтение конфига владельца клона ---
+        private bool GetOwnerConfig(PlayerRef owner, out SkillConfigComponent config, out Entity ownerEntity)
+        {
+            config = default;
+            ownerEntity = Entity.Null;
+            var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+            
+            if (em == default) return false; 
+            
+            var query = em.CreateEntityQuery(typeof(PlayerOwnerComponent), typeof(SkillConfigComponent));
+            using var owners = query.ToComponentDataArray<PlayerOwnerComponent>(Allocator.Temp);
+            using var configs = query.ToComponentDataArray<SkillConfigComponent>(Allocator.Temp);
+            using var entities = query.ToEntityArray(Allocator.Temp);
+
+            for (int i = 0; i < owners.Length; i++)
+            {
+                if (owners[i].Player == owner)
+                {
+                    config = configs[i];
+                    ownerEntity = entities[i];
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public override void FixedUpdateNetwork()
         {
             if (GetComponent<Health>().IsDead) return;
 
-            // Клон не обрабатывает ECS-ульты Истерика и не блокирует сам себя в инвизе
-            if (!_isClone)
+            if (_isClone)
+            {
+                // === МЕХАНИКА: ВООРУЖЕННАЯ ПРОЕКЦИЯ (ШИЗОИД) ===
+                var cloneBridge = GetComponent<CloneNetworkBridge>();
+                if (cloneBridge != null && GetOwnerConfig(cloneBridge.OwnerPlayer, out var cloneConfig, out _))
+                {
+                    // Если перк не куплен, клон не имеет права стрелять. Выходим.
+                    if (cloneConfig.CloneShootingMult <= 0f) return; 
+                }
+                else return; 
+            }
+            else
             {
                 var bridge = GetComponent<PlayerNetworkBridge>();
                 if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
@@ -71,13 +106,12 @@ namespace _Project.Scripts.Network
                     var em = bridge.EntityManager;
                     var playerE = bridge.PlayerEntity;
 
-                    // БЛОКИРОВКА АВТОАТАКИ В ИНВИЗЕ ДЛЯ НАСТОЯЩЕГО ИГРОКА
+                    // БЛОКИРОВКА АВТОАТАКИ В ИНВИЗЕ
                     if (em.HasComponent<InvisibilityStateComponent>(playerE))
                     {
                         return; 
                     }
 
-                    // Логика ульты Истерика (Ураган 360)
                     if (em.HasComponent<Trigger360ShootTag>(playerE))
                     {
                         if (HasStateAuthority)
@@ -90,7 +124,6 @@ namespace _Project.Scripts.Network
                                 bulletsToShoot = hystericSkill.bulletCount; 
                             }
                             
-                            // === НАВЫК "СМЕРЧ" ===
                             var config = em.GetComponentData<SkillConfigComponent>(playerE);
                             if (config.TornadoBulletMultiplier > 0)
                             {
@@ -107,7 +140,6 @@ namespace _Project.Scripts.Network
 
             if (!HasStateAuthority) return;
 
-            // ЕДИНЫЙ ЦИКЛ СТРЕЛЬБЫ (Работает и для игрока, и для полноценного оружия клона)
             if (equippedWeapons.Length > 0 && equippedWeapons[0] != null && Timer0.ExpiredOrNotRunning(Runner))
             {
                 FireWeapon(equippedWeapons[0], 0);
@@ -151,11 +183,9 @@ namespace _Project.Scripts.Network
             var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
             var finalSpawnPos = transform.position + spawnOffset;
 
-            // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
-            // --- ЧТЕНИЕ СТАТОВ ИЗ ECS ---
             float flatDamageBonus = 0f;
             float critChance = 0f;
-            float critDamageMult = 0.5f; // Базовый крит наносит на 50% больше урона
+            float critDamageMult = 0.5f; 
 
             var bridge = GetComponent<PlayerNetworkBridge>();
             if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
@@ -168,60 +198,70 @@ namespace _Project.Scripts.Network
                     var config = em.GetComponentData<SkillConfigComponent>(playerE);
                     flatDamageBonus = config.BaseDamage;
                     critChance = config.CritChance;
-                    critDamageMult += config.CritDamage; // Прибавляем бонус от перков
+                    critDamageMult += config.CritDamage; 
                 }
             }
 
-            // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
-            var calculatedDamage = weapon.damage + flatDamageBonus; // Прибавляем базовый урон от перков
+            var calculatedDamage = weapon.damage + flatDamageBonus; 
 
-            // Механика Критического удара (только для игрока, клоны не критуют)
             bool isCrit = false;
             if (!_isClone && UnityEngine.Random.value <= critChance)
             {
                 isCrit = true;
                 calculatedDamage *= (1f + critDamageMult);
-                // Тут в будущем можно заспавнить красную циферку урона вместо белой
             }
 
             if (_isClone)
             {
-                if (_playerManager != null && _playerManager.currentArchetype != null)
+                // ЛОГИКА КЛОНА: Урон берется из множителя магазина!
+                var cloneBridge = GetComponent<CloneNetworkBridge>();
+                if (cloneBridge != null && GetOwnerConfig(cloneBridge.OwnerPlayer, out var cloneConfig, out _))
                 {
-                    var schizoidSkill = _playerManager.currentArchetype.activeSkillData as SchizoidSkillData;
-                    if (schizoidSkill != null)
-                    {
-                        calculatedDamage = (weapon.damage + flatDamageBonus) * schizoidSkill.cloneDamagePercentage;
-                    }
+                    calculatedDamage *= cloneConfig.CloneShootingMult;
                 }
             }
             else
             {
-                // ЛОГИКА НАСТОЯЩЕГО ИГРОКА: применяем стаки Квантовой нестабильности
                 if (bridge != null && bridge.EntityManager != default)
                 {
                     var em = bridge.EntityManager;
                     var playerE = bridge.PlayerEntity;
 
-                    if (em.HasComponent<QuantumInstabilityComponent>(playerE) && em.HasComponent<SkillConfigComponent>(playerE))
+                    if (em.HasComponent<SkillConfigComponent>(playerE))
                     {
-                        var instability = em.GetComponentData<QuantumInstabilityComponent>(playerE);
                         var config = em.GetComponentData<SkillConfigComponent>(playerE);
 
-                        if (instability.CurrentStacks > 0)
+                        // 1. Квантовая нестабильность
+                        if (em.HasComponent<QuantumInstabilityComponent>(playerE))
                         {
-                            var multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
-                            calculatedDamage *= multiplier;
+                            var instability = em.GetComponentData<QuantumInstabilityComponent>(playerE);
+                            if (instability.CurrentStacks > 0)
+                            {
+                                var multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
+                                calculatedDamage *= multiplier;
+                                
+                                instability.CurrentStacks = 0;
+                                instability.Timer = 0f;
+                                em.SetComponentData(playerE, instability);
+                            }
+                        }
+
+                        // === 2. МЕХАНИКА: УДАР ИЗ ТЕНИ ===
+                        if (em.HasComponent<ShadowStrikeBuffComponent>(playerE))
+                        {
+                            if (config.ShadowStrikeMult > 0f)
+                            {
+                                calculatedDamage *= config.ShadowStrikeMult;
+                                Debug.Log($"<color=#9400D3>[УДАР ИЗ ТЕНИ]</color> Из инвиза! Урон этого выстрела: {calculatedDamage}!");
+                            }
                             
-                            instability.CurrentStacks = 0;
-                            instability.Timer = 0f;
-                            em.SetComponentData(playerE, instability);
+                            // Снимаем бафф, чтобы второй выстрел был обычным
+                            em.RemoveComponent<ShadowStrikeBuffComponent>(playerE);
                         }
                     }
                 }
             }
 
-            // Спавним снаряды
             for (var p = 0; p < weapon.pelletCount; p++)
             {
                 var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
@@ -232,7 +272,13 @@ namespace _Project.Scripts.Network
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
                     if (bulletMovement != null)
                     {
-                        var shooterEntity = bridge != null ? bridge.PlayerEntity : Entity.Null;
+                        Entity shooterEntity = Entity.Null;
+                        if (bridge != null) shooterEntity = bridge.PlayerEntity;
+                        else if (_isClone)
+                        {
+                            var cloneBridge = GetComponent<CloneNetworkBridge>();
+                            if (cloneBridge != null) shooterEntity = cloneBridge.CloneEntity; // Передаем сущность клона!
+                        }
                         bulletMovement.InitNetworkState(weapon.bulletLifeTime, calculatedDamage, weapon.bulletSpeed, shooterEntity);
                     }
                 });
