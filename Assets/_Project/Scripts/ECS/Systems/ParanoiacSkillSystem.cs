@@ -39,8 +39,6 @@ namespace _Project.Scripts.ECS.Systems
                 // 2. Вычисляем направление броска на основе вектора прицеливания джойстика
                 var throwDir = new float3(request.ValueRO.AimDirection.x, request.ValueRO.AimDirection.y, 0);
                 
-                // Защита от броска "под себя", если джойстик вернул нулевой вектор
-                if (math.lengthsq(throwDir) < 0.01f) throwDir = new float3(0, 1, 0);
                 
                 // УБРАЛИ ХАРДКОД: Дистанция броска теперь динамически берется из ScriptableObject (через конфиг)
                 var targetPosition = transform.ValueRO.Position + (math.normalize(throwDir) * config.ValueRO.CastDistance);

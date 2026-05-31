@@ -24,7 +24,6 @@ namespace _Project.Scripts.ECS.Systems
             // 1. ИЩЕМ СУЩНОСТЬ ЛОКАЛЬНОГО ИГРОКА (Только он подбирает этот лут)
             Entity localPlayerEntity = Entity.Null;
             float3 localPlayerPos = float3.zero;
-            float pickupRadius = 4f; // Базовый радиус сбора. Позже вынесем в перк "Магнит"
 
             foreach (var (transform, playerOwner, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<PlayerOwnerComponent>>().WithEntityAccess())
             {
@@ -40,6 +39,15 @@ namespace _Project.Scripts.ECS.Systems
             {
                 ecb.Dispose();
                 return;
+            }
+
+            // === ЧИТАЕМ ПРОКАЧАННЫЙ РАДИУС МАГНИТА ===
+            float pickupRadius = 4f; // Значение по умолчанию
+            if (SystemAPI.HasComponent<SkillConfigComponent>(localPlayerEntity))
+            {
+                var config = SystemAPI.GetComponent<SkillConfigComponent>(localPlayerEntity);
+                // Базовый радиус (4f) + все купленные бонусы из магазина
+                pickupRadius = 4f + config.MagnetRadius; 
             }
 
             // 2. ОБРАБАТЫВАЕМ ВЕСЬ ЛУТ НА АРЕНЕ

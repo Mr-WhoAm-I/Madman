@@ -15,6 +15,8 @@ namespace _Project.Scripts.ECS.Components
         public float FurySpeedMultiplier;
         public float FuryLifesteal;
         public int TornadoBulletMultiplier;
+        public bool ForceFuryOnUltimate;
+        public float OverloadDuration; // Сколько секунд длится перегрузка
         
         // Параметры Параноика
         public float ShieldCapacity;
@@ -22,10 +24,10 @@ namespace _Project.Scripts.ECS.Components
         public float ShieldAuraRadius;
         public int MaxTurrets;
         public float TurretLifeTime;
-        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ ПАРАНОИКА ---
         public float ShieldReflect; 
         public bool TurretExplode;  
-        public bool TurretCryo;     
+        public bool TurretCryo;  
+        public float TurretHealAura; // Сколько ХП в секунду восстанавливает турель (0 = не лечит)
 
         // Параметры Шизоида
         public float InstabilityTimePerStack;
@@ -34,7 +36,6 @@ namespace _Project.Scripts.ECS.Components
         public float InvisibilityDuration;
         public float CloneExplosionDamage;
         public float CloneExplosionRadius;
-        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ ШИЗОИДА ---
         public float CloneRadiusMult; 
         public int MiniClones;        
         
@@ -44,7 +45,6 @@ namespace _Project.Scripts.ECS.Components
         public float FreezeDuration;
         public int ChainTargetsCount;
         public float ChainExplosionDamage;
-        // --- ДОБАВЛЕНО ДЛЯ ПЕРКОВ МЕЛАНХОЛИКА ---
         public int ShrapnelDeath;         
         public float FrostVulnerability;  
         

@@ -33,6 +33,7 @@ namespace _Project.Scripts.Data
         TurretExplode,      // Флаг взрыва турели при смерти
         MaxTurrets,         // Увеличение капа турелей
         TurretCryo,         // Флаг замораживающих снарядов турели
+        TurretHealAura,     // Лечение союзников вокруг турели (ХП в секунду)
         
         // === КЛАССОВЫЕ: ШИЗОИД ===
         MaxInstability,     // Максимальное количество стаков нестабильности
@@ -51,5 +52,7 @@ namespace _Project.Scripts.Data
         FuryThreshold,       // Изменение порога ХП для входа в Ярость
         MaxRerolls,         // Увеличение количества рероллов (база = 1)
         MinDiscount,        // Увеличение минимальной скидки (0.1, 0.2 и т.д.)
+        ForceFuryOnUltimate, // Флаг для навыка "Перегрузка"
+        TornadoMultiplier    // Множитель для навыка "Смерч"
     }
 }

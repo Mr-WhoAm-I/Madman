@@ -25,9 +25,10 @@ namespace _Project.Scripts.ECS.Systems
             var targetPriorities = targetQuery.ToComponentDataArray<TargetableComponent>(Allocator.TempJob);
             var tauntLookup = SystemAPI.GetComponentLookup<TauntComponent>(true);
 
-            // ДОБАВЛЕНО: Считываем массивы дебаффов для передачи в Job
             var apathyLookup = SystemAPI.GetComponentLookup<ApathyDebuffComponent>(true);
             var slowLookup = SystemAPI.GetComponentLookup<FrostSlowComponent>(true);
+            // ДОБАВЛЕНО: Lookup для Крио-заморозки от турели
+            var cryoLookup = SystemAPI.GetComponentLookup<CryoDebuffComponent>(true);
 
             var movementJob = new EnemyMovementJob
             {
@@ -38,7 +39,8 @@ namespace _Project.Scripts.ECS.Systems
                 TargetPriorities = targetPriorities,
                 TauntLookup = tauntLookup,
                 ApathyLookup = apathyLookup,
-                SlowLookup = slowLookup
+                SlowLookup = slowLookup,
+                CryoLookup = cryoLookup // ПЕРЕДАЕМ В JOB
             };
 
             state.Dependency = movementJob.ScheduleParallel(state.Dependency);
@@ -64,18 +66,17 @@ namespace _Project.Scripts.ECS.Systems
         [ReadOnly] public NativeArray<TargetableComponent> TargetPriorities;
         [ReadOnly] public ComponentLookup<TauntComponent> TauntLookup;
 
-        // ДОБАВЛЕНО: Lookup-таблицы для проверки дебаффов на конкретном враге
         [ReadOnly] public ComponentLookup<ApathyDebuffComponent> ApathyLookup;
         [ReadOnly] public ComponentLookup<FrostSlowComponent> SlowLookup;
+        // ДОБАВЛЕНО: Таблица Крио-заморозки
+        [ReadOnly] public ComponentLookup<CryoDebuffComponent> CryoLookup;
 
         public void Execute(Entity entity, [ChunkIndexInQuery] int chunkIndex, ref LocalTransform transform, in EnemyMovementComponent movement, in EnemyTagComponent enemyTag)
         {
-            // --- 1. ПРОВЕРКА НА ЗАМОРОЗКУ (АПАТИЯ) ---
             if (ApathyLookup.HasComponent(entity))
             {
                 if (ApathyLookup[entity].FreezeTimer > 0f)
                 {
-                    // Враг во льду! Пропускаем логику поиска, движения и атаки.
                     return;
                 }
             }
@@ -86,7 +87,6 @@ namespace _Project.Scripts.ECS.Systems
             var maxPriority = -1f;
             var minDistance = 20f; 
 
-            // 1. ПОИСК ЛУЧШЕЙ ЦЕЛИ
             for (var i = 0; i < Targets.Length; i++)
             {
                 var currentPriority = TargetPriorities[i].Priority;
@@ -129,23 +129,27 @@ namespace _Project.Scripts.ECS.Systems
 
             // --- 2. РАСЧЕТ ДВИЖЕНИЯ С УЧЕТОМ ЗАМЕДЛЕНИЯ ---
             var currentSpeed = movement.Speed;
+            
             if (SlowLookup.HasComponent(entity))
             {
                 currentSpeed *= SlowLookup[entity].SpeedMultiplier;
+            }
+            
+            // ДОБАВЛЕНО: Применяем замедление от турели (они могут стакаться с другими замедлениями)
+            if (CryoLookup.HasComponent(entity))
+            {
+                currentSpeed *= CryoLookup[entity].SpeedMultiplier;
             }
 
             var direction = bestTargetPos - enemyPos;
             var distance = math.length(direction);
 
-            // 3. ДВИЖЕНИЕ И АТАКА
             if (distance < 0.8f) 
             {
-                // ИСПРАВЛЕНО: Передаем свою сущность (entity) как источник урона
                 Ecb.AddComponent(chunkIndex, bestTarget, new TakeDamageComponent { 
                     Amount = 10f, 
                     SourceEntity = entity 
                 });
-                //Ecb.DestroyEntity(chunkIndex, entity); 
             }
             else
             {

@@ -190,8 +190,8 @@ namespace _Project.Scripts.Gameplay
             if (isOpen)
             {
                 // --- ИНИЦИАЛИЗАЦИЯ СЕССИИ МАГАЗИНА ---
-                int maxRerolls = 1; // Базовое количество рероллов (1 бесплатный)
-                
+                int maxRerolls = 100; // Базовое количество рероллов (1 бесплатный)
+                //TODO НЕ ЗАБЫТЬ ПОМЕНЯТЬ!
                 if (PlayerNetworkBridge.LocalPlayer != null && PlayerNetworkBridge.LocalPlayer.Object.IsValid)
                 {
                     var player = PlayerNetworkBridge.LocalPlayer;

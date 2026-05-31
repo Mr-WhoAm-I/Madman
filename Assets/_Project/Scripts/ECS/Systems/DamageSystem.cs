@@ -26,22 +26,44 @@ namespace _Project.Scripts.ECS.Systems
                     if (shield.CurrentShield > 0f)
                     {
                         float incomingDamage = takeDamage.ValueRO.Amount;
+                        float absorbedDamage = 0f;
 
                         if (shield.CurrentShield >= incomingDamage)
                         {
                             // Щит выдержал весь урон
                             shield.CurrentShield -= incomingDamage;
-                            takeDamage.ValueRW.Amount = 0f; // Обнуляем урон, чтобы ХП не пострадало
+                            absorbedDamage = incomingDamage;
+                            takeDamage.ValueRW.Amount = 0f; // Обнуляем урон
                             
                             Debug.Log($"<color=#00FFFF>[ЩИТ]</color> Урон {incomingDamage} полностью поглощен! Остаток щита: {shield.CurrentShield}");
                         }
                         else
                         {
-                            // Щит пробит! Вычитаем остаток урона
+                            // Щит пробит!
+                            absorbedDamage = shield.CurrentShield;
                             takeDamage.ValueRW.Amount -= shield.CurrentShield;
-                            Debug.Log($"<color=#00FFFF>[ЩИТ ПРОБИТ]</color> Поглощено {shield.CurrentShield} урона. В здоровье прошло: {takeDamage.ValueRO.Amount}");
-                            
                             shield.CurrentShield = 0f;
+                            
+                            Debug.Log($"<color=#00FFFF>[ЩИТ ПРОБИТ]</color> Поглощено {absorbedDamage} урона. В здоровье прошло: {takeDamage.ValueRO.Amount}");
+                        }
+
+                        // === МЕХАНИКА: ШИПОВАННЫЙ БАРЬЕР (ВОЗВРАТ УРОНА) ===
+                        if (SystemAPI.HasComponent<SkillConfigComponent>(entity))
+                        {
+                            var config = SystemAPI.GetComponent<SkillConfigComponent>(entity);
+                            if (config.ShieldReflect > 0f && takeDamage.ValueRO.SourceEntity != Entity.Null)
+                            {
+                                float reflectedDamage = absorbedDamage * config.ShieldReflect;
+                                
+                                // Создаем новую команду урона для атакующего
+                                ecb.AddComponent(takeDamage.ValueRO.SourceEntity, new TakeDamageComponent
+                                {
+                                    Amount = reflectedDamage,
+                                    SourceEntity = entity // Источник - владелец щита
+                                });
+                                
+                                Debug.Log($"<color=#DA70D6>[ШИПОВАННЫЙ БАРЬЕР]</color> Отражено {reflectedDamage} урона обратно во врага!");
+                            }
                         }
                     }
                     
@@ -74,18 +96,47 @@ namespace _Project.Scripts.ECS.Systems
                 {
                     enemyHealth.ValueRW.CurrentHealth -= damageAmount;
                     
-                    // === ААА-МЕХАНИКА: ВАМПИРИЗМ ===
+                    // === МЕХАНИКА: КРИО-СНАРЯДЫ ТУРЕЛИ ===
                     Entity attacker = takeDamage.ValueRO.SourceEntity;
-                    if (attacker != Entity.Null && SystemAPI.HasComponent<HystericFuryStateTag>(attacker))
+                    if (attacker != Entity.Null && state.EntityManager.HasComponent<TurretComponent>(attacker))
+                    {
+                        var turretComp = state.EntityManager.GetComponentData<TurretComponent>(attacker);
+                        
+                        // Проверяем, прокачал ли владелец турели перк на заморозку
+                        if (turretComp.OwnerEntity != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(turretComp.OwnerEntity))
+                        {
+                            var config = state.EntityManager.GetComponentData<SkillConfigComponent>(turretComp.OwnerEntity);
+                            if (config.TurretCryo)
+                            {
+                                // Накидываем или обновляем дебафф заморозки на враге
+                                ecb.AddComponent(entity, new CryoDebuffComponent 
+                                { 
+                                    SpeedMultiplier = turretComp.CryoMultiplier, 
+                                    Timer = turretComp.CryoDuration 
+                                });
+                                Debug.Log($"<color=#00FFFF>[КРИО-СНАРЯДЫ]</color> Враг {entity.Index} заморожен на {turretComp.CryoDuration} сек. (Скорость x{turretComp.CryoMultiplier})");
+                            }
+                        }
+                    }
+                    
+                    // === ААА-МЕХАНИКА: ВАМПИРИЗМ ===
+                    if (attacker != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(attacker))
                     {
                         var config = SystemAPI.GetComponent<SkillConfigComponent>(attacker);
+                        float totalLifesteal = config.Lifesteal; // Базовый вампиризм
+
+                        // Если это Истерик в Ярости, плюсуем классовый бонус
+                        if (SystemAPI.HasComponent<HystericFuryStateTag>(attacker))
+                        {
+                            totalLifesteal += config.FuryLifesteal;
+                        }
                         
-                        if (config.FuryLifesteal > 0f && state.EntityManager.HasComponent<HealthLinkComponent>(attacker))
+                        if (totalLifesteal > 0f && state.EntityManager.HasComponent<HealthLinkComponent>(attacker))
                         {
                             var attackerHealthLink = state.EntityManager.GetComponentObject<HealthLinkComponent>(attacker);
                             if (attackerHealthLink.Value != null && attackerHealthLink.Value.HasStateAuthority)
                             {
-                                float healAmount = damageAmount * config.FuryLifesteal;
+                                float healAmount = damageAmount * totalLifesteal;
                                 attackerHealthLink.Value.Heal(healAmount);
                             }
                         }

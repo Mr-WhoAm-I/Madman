@@ -157,47 +157,24 @@ namespace _Project.Scripts.Network
                 {
                     var command = _entityManager.GetComponentData<SpawnTurretCommand>(_playerEntity);
                     var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
-                    
-                    // ИСПРАВЛЕНО: Теперь читаем настройки из ParanoiacSkillData
+        
                     if (archetypeData != null && archetypeData.activeSkillData is ParanoiacSkillData paranoiacSkill)
                     {
                         var turretCombat = paranoiacSkill.turretCombatSettings;
                         if (turretCombat != null)
                         {
-                            var activeCount = 0;
-                            TurretNetworkBridge oldestTurret = null;
-                            
-                            for (var i = 0; i < TurretNetworkBridge.ActiveTurrets.Count; i++)
-                            {
-                                if (TurretNetworkBridge.ActiveTurrets[i].OwnerPlayer == Object.InputAuthority)
-                                {
-                                    activeCount++;
-                                    if (oldestTurret == null) 
-                                    {
-                                        oldestTurret = TurretNetworkBridge.ActiveTurrets[i];
-                                    }
-                                }
-                            }
-
-                            // Читаем лимит турелей из профиля Параноика
-                            if (activeCount >= paranoiacSkill.maxTurrets && oldestTurret != null)
-                            {
-                                Runner.Despawn(oldestTurret.Object);
-                            }
-
                             Runner.Spawn(turretCombat.turretPrefab, command.Position, Quaternion.identity, Object.InputAuthority, (runner, obj) => 
                             {
                                 var turretBridge = obj.GetComponent<TurretNetworkBridge>();
                                 if (turretBridge != null)
                                 {
-                                    // Передаем боевые настройки и время жизни турели!
                                     turretBridge.Initialize(Object.InputAuthority, turretCombat, paranoiacSkill.turretLifeTime);
                                 }
                             });
                         }
                     }
                 }
-                
+    
                 _entityManager.RemoveComponent<SpawnTurretCommand>(_playerEntity);
             }
 
@@ -617,6 +594,11 @@ namespace _Project.Scripts.Network
 
                 // Классовые: Истерик
                 case UpgradeType.FuryThreshold: config.FuryHealthThreshold = upgrade.value; break;
+                case UpgradeType.ForceFuryOnUltimate: 
+                    config.ForceFuryOnUltimate = upgrade.value > 0; 
+                    config.OverloadDuration = upgrade.value; // Записываем длительность из Scriptable Object
+                    break;
+                case UpgradeType.TornadoMultiplier: config.TornadoBulletMultiplier = (int)upgrade.value; break;
 
                 // Классовые: Параноик
                 case UpgradeType.ShieldRechargeTime: config.ShieldRechargeTime = upgrade.value; break;
@@ -624,6 +606,7 @@ namespace _Project.Scripts.Network
                 case UpgradeType.MaxTurrets: config.MaxTurrets = (int)upgrade.value; break;
                 case UpgradeType.TurretExplode: config.TurretExplode = upgrade.value > 0; break;
                 case UpgradeType.TurretCryo: config.TurretCryo = upgrade.value > 0; break;
+                case UpgradeType.TurretHealAura: config.TurretHealAura = upgrade.value; break;
 
                 // Классовые: Шизоид
                 case UpgradeType.MaxInstability: config.InstabilityMaxStacks = (int)upgrade.value; break;

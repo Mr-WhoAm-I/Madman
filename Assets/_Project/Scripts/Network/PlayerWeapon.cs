@@ -84,9 +84,18 @@ namespace _Project.Scripts.Network
                         {
                             var bulletsToShoot = 8; 
                             var archetypeData = ProfileController.Instance.GetArchetypeAsset(bridge.NetworkArchetypeID);
+                            
                             if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericSkill)
                             {
                                 bulletsToShoot = hystericSkill.bulletCount; 
+                            }
+                            
+                            // === НАВЫК "СМЕРЧ" ===
+                            var config = em.GetComponentData<SkillConfigComponent>(playerE);
+                            if (config.TornadoBulletMultiplier > 0)
+                            {
+                                bulletsToShoot *= config.TornadoBulletMultiplier;
+                                Debug.Log($"<color=#FF4500>[СМЕРЧ]</color> Ульта усилена! Выпущено {bulletsToShoot} пуль!");
                             }
                             
                             ShootTornado360(bulletsToShoot);
@@ -143,25 +152,53 @@ namespace _Project.Scripts.Network
             var finalSpawnPos = transform.position + spawnOffset;
 
             // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
-            var calculatedDamage = weapon.damage;
+            // --- ЧТЕНИЕ СТАТОВ ИЗ ECS ---
+            float flatDamageBonus = 0f;
+            float critChance = 0f;
+            float critDamageMult = 0.5f; // Базовый крит наносит на 50% больше урона
+
+            var bridge = GetComponent<PlayerNetworkBridge>();
+            if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
+            {
+                var em = bridge.EntityManager;
+                var playerE = bridge.PlayerEntity;
+
+                if (em.HasComponent<SkillConfigComponent>(playerE))
+                {
+                    var config = em.GetComponentData<SkillConfigComponent>(playerE);
+                    flatDamageBonus = config.BaseDamage;
+                    critChance = config.CritChance;
+                    critDamageMult += config.CritDamage; // Прибавляем бонус от перков
+                }
+            }
+
+            // --- ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО УРОНА ---
+            var calculatedDamage = weapon.damage + flatDamageBonus; // Прибавляем базовый урон от перков
+
+            // Механика Критического удара (только для игрока, клоны не критуют)
+            bool isCrit = false;
+            if (!_isClone && UnityEngine.Random.value <= critChance)
+            {
+                isCrit = true;
+                calculatedDamage *= (1f + critDamageMult);
+                // Тут в будущем можно заспавнить красную циферку урона вместо белой
+            }
 
             if (_isClone)
             {
-                // ИСПРАВЛЕНО: Сначала проверяем наличие архетипа, затем безопасно приводим его activeSkillData к типу Шизоида
                 if (_playerManager != null && _playerManager.currentArchetype != null)
                 {
                     var schizoidSkill = _playerManager.currentArchetype.activeSkillData as SchizoidSkillData;
                     if (schizoidSkill != null)
                     {
-                        calculatedDamage = weapon.damage * schizoidSkill.cloneDamagePercentage;
+                        calculatedDamage = (weapon.damage + flatDamageBonus) * schizoidSkill.cloneDamagePercentage;
                     }
                 }
             }
             else
             {
                 // ЛОГИКА НАСТОЯЩЕГО ИГРОКА: применяем стаки Квантовой нестабильности
-                var bridge = GetComponent<PlayerNetworkBridge>();
-                if (bridge != null && bridge.EntityManager != default && bridge.EntityManager.Exists(bridge.PlayerEntity))
+                if (bridge != null && bridge.EntityManager != default)
                 {
                     var em = bridge.EntityManager;
                     var playerE = bridge.PlayerEntity;
@@ -175,9 +212,7 @@ namespace _Project.Scripts.Network
                         {
                             var multiplier = 1.0f + (instability.CurrentStacks * config.InstabilityDamagePerStack);
                             calculatedDamage *= multiplier;
-
-                            Debug.Log($"<color=#00FFCC>[КВАНТОВАЯ НЕСТАБИЛЬНОСТЬ]</color> Игрок выстрелил! Стаки: {instability.CurrentStacks}. Урон: {weapon.damage} -> {calculatedDamage}");
-
+                            
                             instability.CurrentStacks = 0;
                             instability.Timer = 0f;
                             em.SetComponentData(playerE, instability);
@@ -186,7 +221,7 @@ namespace _Project.Scripts.Network
                 }
             }
 
-            // Спавним столько дробинок/снарядов, сколько прописано в WeaponData полноценного ствола!
+            // Спавним снаряды
             for (var p = 0; p < weapon.pelletCount; p++)
             {
                 var randomSpread = UnityEngine.Random.Range(-weapon.spreadAngle, weapon.spreadAngle);
@@ -197,8 +232,6 @@ namespace _Project.Scripts.Network
                     var bulletMovement = obj.GetComponent<BulletNetworkMovement>();
                     if (bulletMovement != null)
                     {
-                        // Сюда улетает честно пересчитанный урон (либо уменьшенный для клона, либо увеличенный для игрока)
-                        var bridge = GetComponent<PlayerNetworkBridge>();
                         var shooterEntity = bridge != null ? bridge.PlayerEntity : Entity.Null;
                         bulletMovement.InitNetworkState(weapon.bulletLifeTime, calculatedDamage, weapon.bulletSpeed, shooterEntity);
                     }

@@ -47,6 +47,15 @@ namespace _Project.Scripts.ECS.Systems
                     TimeLeft = config.ValueRO.DashDuration
                 });
 
+                // === АКТИВАЦИЯ ПЕРЕГРУЗКИ ===
+                if (config.ValueRO.ForceFuryOnUltimate)
+                {
+                    ecb.AddComponent(entity, new OverloadTimerComponent 
+                    { 
+                        Value = config.ValueRO.OverloadDuration 
+                    });
+                }
+
                 ecb.RemoveComponent<ExecuteSkillRequest>(entity);
             }
 
