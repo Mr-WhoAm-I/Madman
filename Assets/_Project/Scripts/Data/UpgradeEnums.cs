@@ -59,6 +59,9 @@ namespace _Project.Scripts.Data
         // === КЛАССОВЫЕ: ИСТЕРИК ===
         FuryThreshold,       // Изменение порога ХП для входа в Ярость
         ForceFuryOnUltimate, // Флаг для навыка "Перегрузка"
-        TornadoMultiplier    // Множитель для навыка "Смерч"
+        TornadoMultiplier,    // Множитель для навыка "Смерч"
+        
+        AuraRadius,         // ДОБАВЛЕНО: Радиус Ауры уныния
+        ShieldPerFreeze     // ДОБАВЛЕНО: Процент щита за заморозку (Ледяной доспех)
     }
 }

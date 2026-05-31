@@ -57,6 +57,8 @@ namespace _Project.Scripts.ECS.Components
         public float ChainExplosionDamage;
         public int ShrapnelDeath;         
         public float FrostVulnerability;  
+        public float AuraRadius;          // ДОБАВЛЕНО: Аура уныния
+        public float ShieldPerFreeze;
         
         // --- БАЗОВЫЕ ХАРАКТЕРИСТИКИ ---
         public float BaseDamage;

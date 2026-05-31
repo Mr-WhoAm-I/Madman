@@ -237,7 +237,51 @@ namespace _Project.Scripts.Network
 
                 _entityManager.RemoveComponent<SpawnIceProjectileCommand>(_playerEntity);
             }
+ 
+            // =========================================================================
+            // СЕТЕВАЯ ФАБРИКА: ОБРАБОТКА КОМАНДЫ НА СПАВН ОСКОЛКОВ (ОСКОЛОЧНЫЙ ВЗРЫВ)
+            // =========================================================================
+            if (_entityManager.HasBuffer<SpawnShrapnelCommand>(_playerEntity))
+            {
+                if (HasStateAuthority)
+                {
+                    var buffer = _entityManager.GetBuffer<SpawnShrapnelCommand>(_playerEntity);
+                    if (buffer.Length > 0)
+                    {
+                        var archetypeData = ProfileController.Instance.GetArchetypeAsset(NetworkArchetypeID);
 
+                        if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicSkill)
+                        {
+                            // Распределяем осколки веером (равномерно по кругу)
+                            float angleStep = 360f / buffer.Length; 
+                            
+                            for (int i = 0; i < buffer.Length; i++)
+                            {
+                                var command = buffer[i];
+                                        
+                                // Вычисляем угол для текущего осколка, чтобы они красиво разлетались в разные стороны
+                                float currentAngle = i * angleStep;
+                                Quaternion rotation = Quaternion.Euler(0, 0, currentAngle);
+                                
+                                Vector3 spawnPos = new Vector3(command.Position.x, command.Position.y, 0f);
+
+                                Runner.Spawn(melancholicSkill.iceProjectilePrefab, spawnPos, rotation, Object.InputAuthority, (runner, obj) =>
+                                {
+                                    var shardBridge = obj.GetComponent<IceProjectileNetworkBridge>();
+                                    if (shardBridge != null)
+                                    {
+                                        // Передаем команду и Entity.Null. Шип полетит прямо по заданному rotation!
+                                        shardBridge.InitializeShard(Object.InputAuthority, melancholicSkill, _playerEntity, command.TargetEnemy);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Очищаем буфер после спавна всех льдин
+                _entityManager.RemoveComponent<SpawnShrapnelCommand>(_playerEntity);
+            }
             // =========================================================================
             // СБОР КООРДИНАТ И ИНПУТА В ECS
             // =========================================================================
@@ -621,11 +665,14 @@ namespace _Project.Scripts.Network
                 case UpgradeType.KillCooldownReduction: config.KillCooldownReduction = upgrade.value; break;
 
                 // Классовые: Меланхолик
-                case UpgradeType.FreezeDuration: config.FreezeDuration = upgrade.value; break;
-                case UpgradeType.ApathyMaxStacks: config.ApathyMaxStacks = (int)upgrade.value; break;
-                case UpgradeType.ChainTargets: config.ChainTargetsCount = (int)upgrade.value; break;
+                // === МЕЛАНХОЛИК ===
+                case UpgradeType.FreezeDuration: config.FreezeDuration += upgrade.value; break; 
+                case UpgradeType.ApathyMaxStacks: config.ApathyMaxStacks -= (int)upgrade.value; break;
+                case UpgradeType.ChainTargets: config.ChainTargetsCount += (int)upgrade.value; break; 
                 case UpgradeType.ShrapnelDeath: config.ShrapnelDeath = (int)upgrade.value; break;
                 case UpgradeType.FrostVulnerability: config.FrostVulnerability = upgrade.value; break;
+                case UpgradeType.AuraRadius: config.AuraRadius = upgrade.value; break;
+                case UpgradeType.ShieldPerFreeze: config.ShieldPerFreeze = upgrade.value; break;
             }
 
             // Сохраняем измененные данные обратно в ECS

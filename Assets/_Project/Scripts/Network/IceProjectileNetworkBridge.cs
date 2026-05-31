@@ -159,12 +159,27 @@ namespace _Project.Scripts.Network
             _hasExploded = true;
             var em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
-            // Читаем все радиусы и уроны из конфига Меланхолика
+            // Читаем базовые параметры из ScriptableObject
             float explosionRadius = _skillData != null ? _skillData.chainExplosionRadius : 4f;
             float damage = _skillData != null ? _skillData.chainExplosionDamage : 150f;
             int chainTargetsCount = _skillData != null ? _skillData.chainTargetsCount : 3;
             float shardSearchRad = _skillData != null ? _skillData.shardSearchRadius : 8f;
             
+            // === МЕХАНИКА: МОГУЧАЯ ЦЕПЬ (Чтение из ECS) ===
+            if (_shooterEntity != Entity.Null && em.Exists(_shooterEntity) && em.HasComponent<SkillConfigComponent>(_shooterEntity))
+            {
+                var config = em.GetComponentData<SkillConfigComponent>(_shooterEntity);
+                
+                // Проверяем, купил ли игрок бафф (значение в конфиге стало больше стартовой базы)
+                if (config.ChainTargetsCount > chainTargetsCount)
+                {
+                    Debug.Log($"<color=#00FFFF>[МОГУЧАЯ ЦЕПЬ]</color> Цепная реакция усилена! Осколков будет: {config.ChainTargetsCount}");
+                }
+                
+                // Берем максимальное значение для подстраховки: либо стартовую базу, либо прокачанную базу из конфига
+                chainTargetsCount = math.max(chainTargetsCount, config.ChainTargetsCount);
+            }
+
             float3 myPos = transform.position;
 
             var enemyQuery = em.CreateEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<EnemyTagComponent>());
@@ -207,23 +222,36 @@ namespace _Project.Scripts.Network
             chainCandidates.Sort((a, b) => a.dist.CompareTo(b.dist));
 
             int spawnedShards = 0;
-            foreach (var candidate in chainCandidates)
+            int candidateIndex = 0;
+
+            // Спавним осколки ТОЛЬКО если есть хотя бы 1 цель
+            if (chainCandidates.Count > 0)
             {
-                if (spawnedShards >= chainTargetsCount) break;
-
-                if (_skillData != null)
+                // Крутим цикл, пока не выстрелим ВСЕ доступные осколки
+                while (spawnedShards < chainTargetsCount)
                 {
-                    Runner.Spawn(_skillData.iceProjectilePrefab, transform.position, Quaternion.identity, Object.InputAuthority, (runner, obj) =>
-                    {
-                        var shardBridge = obj.GetComponent<IceProjectileNetworkBridge>();
-                        if (shardBridge != null)
-                        {
-                            shardBridge.InitializeShard(Object.InputAuthority, _skillData, _shooterEntity, candidate.entity);
-                        }
-                    });
-                }
+                    // Используем остаток от деления (%), чтобы идти по кругу списка врагов
+                    var candidate = chainCandidates[candidateIndex % chainCandidates.Count];
 
-                spawnedShards++;
+                    if (_skillData != null)
+                    {
+                        Runner.Spawn(_skillData.iceProjectilePrefab, transform.position, Quaternion.identity, Object.InputAuthority, (runner, obj) =>
+                        {
+                            var shardBridge = obj.GetComponent<IceProjectileNetworkBridge>();
+                            if (shardBridge != null)
+                            {
+                                shardBridge.InitializeShard(Object.InputAuthority, _skillData, _shooterEntity, candidate.entity);
+                            }
+                        });
+                    }
+
+                    spawnedShards++;
+                    candidateIndex++;
+                }
+            }
+            else
+            {
+                Debug.Log($"<color=#87CEFA>[МОГУЧАЯ ЦЕПЬ]</color> Нет целей для отскока. Осколки не выпущены.");
             }
 
             enemyEntities.Dispose();

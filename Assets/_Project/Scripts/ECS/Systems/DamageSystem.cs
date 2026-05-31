@@ -1,6 +1,7 @@
 using Unity.Entities;
 using UnityEngine; // Добавлено для дебаг логов
 using _Project.Scripts.ECS.Components;
+using Unity.Transforms;
 
 namespace _Project.Scripts.ECS.Systems
 {
@@ -93,6 +94,13 @@ namespace _Project.Scripts.ECS.Systems
                 
                 if (damageAmount > 0f)
                 {
+                    // === МЕХАНИКА: ХРУПКИЙ ЛЕД ===
+                    if (state.EntityManager.HasComponent<FrostVulnerabilityComponent>(entity))
+                    {
+                        var vuln = state.EntityManager.GetComponentData<FrostVulnerabilityComponent>(entity);
+                        damageAmount *= (1.0f + vuln.Multiplier); // Урон увеличивается на 50%
+                    }
+
                     enemyHealth.ValueRW.CurrentHealth -= damageAmount;
                     Entity attacker = takeDamage.ValueRO.SourceEntity;
                     
@@ -153,12 +161,11 @@ namespace _Project.Scripts.ECS.Systems
                         }
                     }
 
-                    // === СМЕРТЬ ВРАГА И КРОВАВАЯ ЖАТВА ===
+                    // === СМЕРТЬ ВРАГА И ЭФФЕКТЫ ПРИ СМЕРТИ ===
                     if (enemyHealth.ValueRO.CurrentHealth <= 0)
                     {
                         ecb.AddComponent<DeathTagComponent>(entity);
 
-                        // Убийцей может быть сам игрок, его турель или клон. Ищем настоящего владельца:
                         Entity realAttacker = attacker;
                         if (attacker != Entity.Null)
                         {
@@ -168,10 +175,11 @@ namespace _Project.Scripts.ECS.Systems
                                 realAttacker = state.EntityManager.GetComponentData<CloneComponent>(attacker).OwnerEntity;
                         }
 
-                        // Срезаем КД ульты
                         if (realAttacker != Entity.Null && state.EntityManager.HasComponent<SkillConfigComponent>(realAttacker))
                         {
                             var config = state.EntityManager.GetComponentData<SkillConfigComponent>(realAttacker);
+                            
+                            // 1. КРОВАВАЯ ЖАТВА (ШИЗОИД)
                             if (config.KillCooldownReduction > 0f && state.EntityManager.HasComponent<SkillStateComponent>(realAttacker))
                             {
                                 var skillState = state.EntityManager.GetComponentData<SkillStateComponent>(realAttacker);
@@ -179,7 +187,33 @@ namespace _Project.Scripts.ECS.Systems
                                 {
                                     skillState.CurrentCooldown = Unity.Mathematics.math.max(0f, skillState.CurrentCooldown - config.KillCooldownReduction);
                                     state.EntityManager.SetComponentData(realAttacker, skillState);
-                                    Debug.Log($"<color=#8B0000>[КРОВАВАЯ ЖАТВА]</color> КД ульты снижено на {config.KillCooldownReduction} сек!");
+                                }
+                            }
+
+                            // 2. ОСКОЛОЧНЫЙ ВЗРЫВ (МЕЛАНХОЛИК)
+                            if (config.ShrapnelDeath > 0 && state.EntityManager.HasComponent<ApathyDebuffComponent>(entity))
+                            {
+                                var apathy = state.EntityManager.GetComponentData<ApathyDebuffComponent>(entity);
+                                
+                                // Проверяем, что враг был ПОЛНОСТЬЮ заморожен в момент смерти
+                                if (apathy.FreezeTimer > 0f) 
+                                {
+                                    var deadPos = state.EntityManager.GetComponentData<LocalTransform>(entity).Position;
+                                    
+                                    // Добавляем команду в буфер стрелка
+                                    DynamicBuffer<SpawnShrapnelCommand> buffer;
+                                    if (!state.EntityManager.HasBuffer<SpawnShrapnelCommand>(realAttacker))
+                                        buffer = ecb.AddBuffer<SpawnShrapnelCommand>(realAttacker);
+                                    else
+                                        buffer = state.EntityManager.GetBuffer<SpawnShrapnelCommand>(realAttacker);
+
+                                    // Добавляем N осколков в очередь на спавн
+                                    for (int i = 0; i < config.ShrapnelDeath; i++)
+                                    {
+                                        buffer.Add(new SpawnShrapnelCommand { Position = deadPos, TargetEnemy = Entity.Null });
+                                    }
+                                    
+                                    Debug.Log($"<color=#E0FFFF>[ОСКОЛОЧНЫЙ ВЗРЫВ]</color> Моб разорван на {config.ShrapnelDeath} льдин(ы)!");
                                 }
                             }
                         }
