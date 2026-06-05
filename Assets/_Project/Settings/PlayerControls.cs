@@ -127,6 +127,42 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""SelectAmmo1"",
+                    ""type"": ""Button"",
+                    ""id"": ""f0db7c49-00ee-4fe1-8989-fabab3e0a972"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""SelectAmmo2"",
+                    ""type"": ""Button"",
+                    ""id"": ""58596448-f7bb-4c6d-af6f-5c3f187cf884"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""SelectAmmo3"",
+                    ""type"": ""Button"",
+                    ""id"": ""e40824f1-26aa-4f45-b9fd-bb9ef3eee639"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""SelectAmmo4"",
+                    ""type"": ""Button"",
+                    ""id"": ""4a0f4335-e5f9-4278-9fb5-8a59abba4f26"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -259,6 +295,94 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""Skill"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""05c75cfc-7dd4-412a-b76e-81a9fff08c1c"",
+                    ""path"": ""<Keyboard>/1"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo1"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""6509804b-3e74-4762-ab7b-594ed310b56b"",
+                    ""path"": ""<Gamepad>/dpad/up"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo1"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""62c00f9b-7d59-4941-bf92-57e0f0ea61a2"",
+                    ""path"": ""<Keyboard>/2"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo2"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""b961c58e-fbcd-49af-9587-4bbd95ce3693"",
+                    ""path"": ""<Gamepad>/dpad/right"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo2"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""f9e66818-d6aa-4911-812b-d090a66f5216"",
+                    ""path"": ""<Keyboard>/3"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo3"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""6914647d-391c-4859-91b6-779c7b520a79"",
+                    ""path"": ""<Gamepad>/dpad/down"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo3"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""f2b897cc-a744-4b48-a063-a1367568d5ab"",
+                    ""path"": ""<Keyboard>/4"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo4"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""25adf097-314d-49cd-9210-1ad67352be56"",
+                    ""path"": ""<Gamepad>/dpad/left"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SelectAmmo4"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -436,6 +560,10 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         m_Gameplay_Interact = m_Gameplay.FindAction("Interact", throwIfNotFound: true);
         m_Gameplay_Aim = m_Gameplay.FindAction("Aim", throwIfNotFound: true);
         m_Gameplay_Skill = m_Gameplay.FindAction("Skill", throwIfNotFound: true);
+        m_Gameplay_SelectAmmo1 = m_Gameplay.FindAction("SelectAmmo1", throwIfNotFound: true);
+        m_Gameplay_SelectAmmo2 = m_Gameplay.FindAction("SelectAmmo2", throwIfNotFound: true);
+        m_Gameplay_SelectAmmo3 = m_Gameplay.FindAction("SelectAmmo3", throwIfNotFound: true);
+        m_Gameplay_SelectAmmo4 = m_Gameplay.FindAction("SelectAmmo4", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_ToggleNetworkMenu = m_UI.FindAction("ToggleNetworkMenu", throwIfNotFound: true);
@@ -528,6 +656,10 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Gameplay_Interact;
     private readonly InputAction m_Gameplay_Aim;
     private readonly InputAction m_Gameplay_Skill;
+    private readonly InputAction m_Gameplay_SelectAmmo1;
+    private readonly InputAction m_Gameplay_SelectAmmo2;
+    private readonly InputAction m_Gameplay_SelectAmmo3;
+    private readonly InputAction m_Gameplay_SelectAmmo4;
     /// <summary>
     /// Provides access to input actions defined in input action map "Gameplay".
     /// </summary>
@@ -555,6 +687,22 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Gameplay/Skill".
         /// </summary>
         public InputAction @Skill => m_Wrapper.m_Gameplay_Skill;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/SelectAmmo1".
+        /// </summary>
+        public InputAction @SelectAmmo1 => m_Wrapper.m_Gameplay_SelectAmmo1;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/SelectAmmo2".
+        /// </summary>
+        public InputAction @SelectAmmo2 => m_Wrapper.m_Gameplay_SelectAmmo2;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/SelectAmmo3".
+        /// </summary>
+        public InputAction @SelectAmmo3 => m_Wrapper.m_Gameplay_SelectAmmo3;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/SelectAmmo4".
+        /// </summary>
+        public InputAction @SelectAmmo4 => m_Wrapper.m_Gameplay_SelectAmmo4;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -593,6 +741,18 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Skill.started += instance.OnSkill;
             @Skill.performed += instance.OnSkill;
             @Skill.canceled += instance.OnSkill;
+            @SelectAmmo1.started += instance.OnSelectAmmo1;
+            @SelectAmmo1.performed += instance.OnSelectAmmo1;
+            @SelectAmmo1.canceled += instance.OnSelectAmmo1;
+            @SelectAmmo2.started += instance.OnSelectAmmo2;
+            @SelectAmmo2.performed += instance.OnSelectAmmo2;
+            @SelectAmmo2.canceled += instance.OnSelectAmmo2;
+            @SelectAmmo3.started += instance.OnSelectAmmo3;
+            @SelectAmmo3.performed += instance.OnSelectAmmo3;
+            @SelectAmmo3.canceled += instance.OnSelectAmmo3;
+            @SelectAmmo4.started += instance.OnSelectAmmo4;
+            @SelectAmmo4.performed += instance.OnSelectAmmo4;
+            @SelectAmmo4.canceled += instance.OnSelectAmmo4;
         }
 
         /// <summary>
@@ -616,6 +776,18 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Skill.started -= instance.OnSkill;
             @Skill.performed -= instance.OnSkill;
             @Skill.canceled -= instance.OnSkill;
+            @SelectAmmo1.started -= instance.OnSelectAmmo1;
+            @SelectAmmo1.performed -= instance.OnSelectAmmo1;
+            @SelectAmmo1.canceled -= instance.OnSelectAmmo1;
+            @SelectAmmo2.started -= instance.OnSelectAmmo2;
+            @SelectAmmo2.performed -= instance.OnSelectAmmo2;
+            @SelectAmmo2.canceled -= instance.OnSelectAmmo2;
+            @SelectAmmo3.started -= instance.OnSelectAmmo3;
+            @SelectAmmo3.performed -= instance.OnSelectAmmo3;
+            @SelectAmmo3.canceled -= instance.OnSelectAmmo3;
+            @SelectAmmo4.started -= instance.OnSelectAmmo4;
+            @SelectAmmo4.performed -= instance.OnSelectAmmo4;
+            @SelectAmmo4.canceled -= instance.OnSelectAmmo4;
         }
 
         /// <summary>
@@ -824,6 +996,34 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnSkill(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "SelectAmmo1" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnSelectAmmo1(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "SelectAmmo2" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnSelectAmmo2(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "SelectAmmo3" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnSelectAmmo3(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "SelectAmmo4" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnSelectAmmo4(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.

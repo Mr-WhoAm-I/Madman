@@ -1,3 +1,4 @@
+using _Project.Scripts.Data.Weapons; // Нужно для WeaponElementalType
 using _Project.Scripts.ECS.Components.BuffsAndDebuffs;
 using _Project.Scripts.ECS.Components.Classes;
 using _Project.Scripts.ECS.Components.Combat;
@@ -11,7 +12,7 @@ using Unity.Transforms;
 namespace _Project.Scripts.ECS.Systems.Combat
 {
     [UpdateInGroup(typeof(FusionUpdateGroup))]
-    [UpdateBefore(typeof(DamageSystem))] // Наносим яд до основной обработки урона
+    [UpdateBefore(typeof(DamageSystem))] 
     public partial struct DamageOverTimeSystem : ISystem
     {
         public void OnUpdate(ref SystemState state)
@@ -40,18 +41,48 @@ namespace _Project.Scripts.ECS.Systems.Combat
                 }
             }
 
-            // 2. ИСТЯЗАНИЕ (Яд от пуль)
-            foreach (var (poison, enemyHealth, entity) in SystemAPI.Query<RefRO<PoisonDebuffComponent>, RefRW<EnemyHealthComponent>>().WithEntityAccess())
+            // 2. ИСТЯЗАНИЕ (Яд от пуль клона)
+            foreach (var (poison, enemyHealth, transform, entity) in SystemAPI.Query<RefRO<PoisonDebuffComponent>, RefRW<EnemyHealthComponent>, RefRO<LocalTransform>>().WithEntityAccess())
             {
-                enemyHealth.ValueRW.CurrentHealth -= poison.ValueRO.DPS * deltaTime;
+                float poisonTick = poison.ValueRO.DPS * deltaTime;
+                enemyHealth.ValueRW.CurrentHealth -= poisonTick;
+                
+                // Для яда не спавним цифры каждый кадр, так как это DPS, иначе экран утонет в цифрах
                 CheckDeathForHarvest(ref state, ecb, enemyHealth.ValueRO, entity, poison.ValueRO.OwnerEntity);
+            }
+
+            // ==========================================
+            // 3. ГОРЕНИЕ (Элементальные огненные пули)
+            // ==========================================
+            foreach (var (burn, enemyHealth, transform, entity) in SystemAPI.Query<RefRW<BurningDebuffComponent>, RefRW<EnemyHealthComponent>, RefRO<LocalTransform>>().WithEntityAccess())
+            {
+                burn.ValueRW.Timer -= deltaTime;
+                if (burn.ValueRO.Timer <= 0f)
+                {
+                    // Сбрасываем таймер для следующего тика
+                    burn.ValueRW.Timer = burn.ValueRO.TickRate;
+                    burn.ValueRW.TicksRemaining -= 1;
+
+                    float tickDamage = burn.ValueRO.DamagePerTick;
+                    enemyHealth.ValueRW.CurrentHealth -= tickDamage;
+
+                    // ВЫЗЫВАЕМ ОТРИСОВКУ ОРАНЖЕВОЙ ЦИФРЫ (Крит всегда false для горения)
+                    DamageSystem.OnEnemyDamaged?.Invoke(transform.ValueRO.Position, tickDamage, WeaponElementalType.Fire, false);
+
+                    CheckDeathForHarvest(ref state, ecb, enemyHealth.ValueRO, entity, burn.ValueRO.SourceEntity);
+
+                    // Если тики горения закончились - тушим врага
+                    if (burn.ValueRO.TicksRemaining <= 0)
+                    {
+                        ecb.RemoveComponent<BurningDebuffComponent>(entity);
+                    }
+                }
             }
 
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
         }
 
-        // Вспомогательный метод для проверки смерти от яда и прока Кровавой жатвы
         private void CheckDeathForHarvest(ref SystemState state, EntityCommandBuffer ecb, EnemyHealthComponent health, Entity enemyEntity, Entity ownerEntity)
         {
             if (health.CurrentHealth <= 0)

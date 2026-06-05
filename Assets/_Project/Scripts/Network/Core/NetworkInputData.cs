@@ -15,5 +15,6 @@ namespace _Project.Scripts.Network.Core
         public Vector2 MovementInput;
         public Vector2 AimDirection;
         public NetworkButtons Buttons; // Специальная структура Fusion для кнопок
+        public byte SelectedAmmoType; // 0 = Physical, 1 = Fire, 2 = Cryo, 3 = Toxic
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using _Project.Scripts.Data.Skills;
+using _Project.Scripts.Data.Weapons;
 using _Project.Scripts.ECS.Components.Classes;
 using _Project.Scripts.ECS.Components.Combat;
 using _Project.Scripts.ECS.Components.Enemies;
@@ -207,7 +208,15 @@ namespace _Project.Scripts.Network.Bridges
                         var bullet = obj.GetComponent<BulletNetworkMovement>();
                         if (bullet != null)
                         {
-                            bullet.InitNetworkState(_skillData.bulletLifeTime, _skillData.bulletDamage, _skillData.bulletSpeed, _turretEntity); 
+                            bullet.InitNetworkState(
+                                _skillData.bulletLifeTime, 
+                                _skillData.bulletDamage, 
+                                _skillData.bulletSpeed, 
+                                _turretEntity, 
+                                false,                          // pierceEnemies (турель не пробивает насквозь)
+                                WeaponElementalType.Physical,    // currentElement (обычный физический урон)
+                                false
+                            ); 
                         }
                     });
                     

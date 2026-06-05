@@ -14,6 +14,7 @@ namespace _Project.Scripts.Network.Managers
         public static NetworkManager Instance;
         public List<SessionInfo> AvailableSessions { get; private set; } = new();
         public event Action<List<SessionInfo>> OnSessionListUpdatedEvent;
+        public event Action<byte> OnAmmoChoiceChanged;
         
         [Header("Настройки спавна")]
         public NetworkPrefabRef playerPrefab;
@@ -21,6 +22,7 @@ namespace _Project.Scripts.Network.Managers
         private NetworkRunner _networkRunner;
         private GameObject _runnerObject;
         private PlayerControls _playerControls;
+        private byte _currentAmmoChoice = 0;
         private readonly Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
         private bool _isIntentionalShutdown = false;
         private bool _isRecovering = false;
@@ -36,12 +38,31 @@ namespace _Project.Scripts.Network.Managers
                 transform.parent = null;
                 DontDestroyOnLoad(gameObject);
                 _playerControls = new PlayerControls();
+                
+                // Подписываемся через явные методы
+                _playerControls.Gameplay.SelectAmmo1.performed += OnSelectAmmo1;
+                _playerControls.Gameplay.SelectAmmo2.performed += OnSelectAmmo2;
+                _playerControls.Gameplay.SelectAmmo3.performed += OnSelectAmmo3;
+                _playerControls.Gameplay.SelectAmmo4.performed += OnSelectAmmo4;
+                
                 _playerControls.Enable();
             }
             else
             {
                 Destroy(gameObject);
             }
+        }
+
+        // --- ЯВНЫЕ ОБРАБОТЧИКИ ДЛЯ ИЗБЕЖАНИЯ УТЕЧЕК ПАМЯТИ ---
+        private void OnSelectAmmo1(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => SetAmmoChoice(0);
+        private void OnSelectAmmo2(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => SetAmmoChoice(1);
+        private void OnSelectAmmo3(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => SetAmmoChoice(2);
+        private void OnSelectAmmo4(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => SetAmmoChoice(3);
+
+        public void SetAmmoChoice(byte ammoType)
+        {
+            _currentAmmoChoice = ammoType;
+            OnAmmoChoiceChanged?.Invoke(ammoType); // Сигнализируем UI
         }
 
         private async Task ShutdownCurrentSession()
@@ -231,6 +252,7 @@ namespace _Project.Scripts.Network.Managers
             }
 
             inputData.Buttons.Set(PlayerInputButtons.Skill, isSkillFired);
+            inputData.SelectedAmmoType = _currentAmmoChoice;
 
             input.Set(inputData);
         }
@@ -356,5 +378,15 @@ namespace _Project.Scripts.Network.Managers
         public void OnSceneLoadStart(NetworkRunner runner) {}
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) {}
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) {}
+        
+        private void OnDestroy()
+        {
+            if (Instance != this || _playerControls == null) return;
+            // Корректная отписка
+            _playerControls.Gameplay.SelectAmmo1.performed -= OnSelectAmmo1;
+            _playerControls.Gameplay.SelectAmmo2.performed -= OnSelectAmmo2;
+            _playerControls.Gameplay.SelectAmmo3.performed -= OnSelectAmmo3;
+            _playerControls.Gameplay.SelectAmmo4.performed -= OnSelectAmmo4;
+        }
     }
 }

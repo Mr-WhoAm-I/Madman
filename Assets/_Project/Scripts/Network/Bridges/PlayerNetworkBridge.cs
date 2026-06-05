@@ -8,6 +8,7 @@ using _Project.Scripts.ECS.Components.Skills;
 using _Project.Scripts.Gameplay;
 using _Project.Scripts.Network.Core;
 using _Project.Scripts.Network.Gameplay;
+using _Project.Scripts.Network.Managers;
 using Fusion;
 using Unity.Entities;
 using Unity.Transforms;
@@ -22,6 +23,11 @@ namespace _Project.Scripts.Network.Bridges
     {
         [Networked] public int NetworkArchetypeID { get; set; }
         [Networked] public int NetworkCurrency { get; set; }
+        // --- СЕТЕВОЙ ИНВЕНТАРЬ ПАТРОНОВ ---
+        [Header("Стартовые патроны (Дебаг)")]
+        public int startingFireAmmo = 10;
+        public int startingCryoAmmo = 10;
+        public int startingToxicAmmo = 10;
         [Networked, Capacity(32)] 
         public NetworkLinkedList<NetworkString<_32>> PurchasedUpgrades { get; }
         
@@ -37,6 +43,11 @@ namespace _Project.Scripts.Network.Bridges
         [Networked] public float NetworkDashTimeLeft { get; set; }
         [Networked] public float NetworkDashSpeed { get; set; }
 
+        // --- СЕТЕВОЙ ИНВЕНТАРЬ ПАТРОНОВ ---
+        [Networked] public int NetworkFireAmmo { get; set; }
+        [Networked] public int NetworkCryoAmmo { get; set; }
+        [Networked] public int NetworkToxicAmmo { get; set; }
+        
         public static PlayerNetworkBridge LocalPlayer;
         private Entity _playerEntity;
         private EntityManager _entityManager;
@@ -65,6 +76,7 @@ namespace _Project.Scripts.Network.Bridges
             _entityManager.SetComponentData(_playerEntity, LocalTransform.FromPosition(transform.position));
             _entityManager.AddComponentData(_playerEntity, new HealthLinkComponent { Value = GetComponent<Health>() });
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
+            _entityManager.AddComponentData(_playerEntity, new CritStateComponent { NonCritStreak = 0 });
             
             // Инициализируем базовый приоритет игрока равным 1.0f.
             _entityManager.SetComponentData(_playerEntity, new TargetableComponent { Priority = 1.0f });
@@ -78,6 +90,12 @@ namespace _Project.Scripts.Network.Bridges
                 
                 var mySavedArchetypeID = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
                 HandleLocalArchetypeChanged(mySavedArchetypeID);
+            }
+            if (HasStateAuthority)
+            {
+                NetworkFireAmmo = startingFireAmmo;
+                NetworkCryoAmmo = startingCryoAmmo;
+                NetworkToxicAmmo = startingToxicAmmo;
             }
 
             ApplyArchetypeStatsToECS();
@@ -301,6 +319,7 @@ namespace _Project.Scripts.Network.Bridges
             inputComponent.MovementInput = data.MovementInput;
             inputComponent.AimDirection = data.AimDirection;
             inputComponent.Buttons = data.Buttons; 
+            inputComponent.SelectedAmmoType = data.SelectedAmmoType;
                     
             _entityManager.SetComponentData(_playerEntity, inputComponent);
         }
@@ -592,6 +611,30 @@ namespace _Project.Scripts.Network.Bridges
             }
         }
 
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void Rpc_BuyElementalAmmo(byte ammoType, int amount, int cost)
+        {
+            if (NetworkCurrency < cost) return;
+            NetworkCurrency -= cost;
+            switch (ammoType)
+            {
+                case 1: NetworkFireAmmo += amount; break;
+                case 2: NetworkCryoAmmo += amount; break;
+                case 3: NetworkToxicAmmo += amount; break;
+            }
+            Debug.Log($"<color=#FF4500>[АРСЕНАЛ]</color> Игрок купил {amount} патронов типа {ammoType}! Остаток монет: {NetworkCurrency}");
+        }
+        
+        [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+        public void Rpc_ForceAmmoUIUpdate(byte ammoType)
+        {
+            if (NetworkManager.Instance != null)
+            {
+                // Заставляем локальный инпут переключиться
+                NetworkManager.Instance.SetAmmoChoice(ammoType);
+            }
+        }
+        
         private void ApplyUpgradeToECS(UpgradeData upgrade)
         {
             if (!_entityManager.Exists(_playerEntity)) return;

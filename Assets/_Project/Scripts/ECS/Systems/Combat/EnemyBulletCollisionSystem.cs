@@ -15,30 +15,38 @@ namespace _Project.Scripts.ECS.Systems.Combat
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // ИСПРАВЛЕНО: Нам больше не нужно запрашивать Health и Flash. Мы только читаем координаты.
             foreach (var (transform, entity) in SystemAPI.Query<RefRO<LocalTransform>>().WithEntityAccess().WithAll<EnemyTagComponent>())
             {
                 for (var i = BulletNetworkMovement.ActiveBullets.Count - 1; i >= 0; i--)
                 {
                     var bullet = BulletNetworkMovement.ActiveBullets[i];
-                    if (bullet == null || bullet.isHit) continue;
+                    
+                    // Пропускаем удаляющиеся пули
+                    if (bullet == null || bullet.isDespawning) continue;
+                    
+                    // Предотвращаем двойной урон от пробивных пуль по одной цели
+                    if (bullet.HitEntities.Contains(entity)) continue;
 
                     var distance = math.distance(transform.ValueRO.Position, bullet.transform.position);
-
-                    if (!(distance < 0.5f)) continue;
+                    if (distance >= 0.5f) continue;
                     
-                    // AAA-СТАНДАРТ: Мы не трогаем здоровье напрямую! Мы просто вешаем "запрос на урон"
-                    // Твоя система DamageSystem (которая обрабатывает взрывы и атаки мобов) сама снимет ХП и убьет врага.
+                    // Попадание! Запоминаем врага
+                    bullet.HitEntities.Add(entity);
+
+                    // Передаем автора пули и её стихию!
                     ecb.AddComponent(entity, new TakeDamageComponent { 
                         Amount = bullet.damage,
-                        SourceEntity = bullet.SourceEntity // Передаем автора пули!
+                        SourceEntity = bullet.SourceEntity,
+                        Element = bullet.currentElement,
+                        IsCritical = bullet.isCritical // <- ПЕРЕДАЕМ ФЛАГ!
                     });
 
-                    bullet.isHit = true;
-                        
-                    if (bullet.HasStateAuthority) bullet.Runner.Despawn(bullet.Object);
-
-                    break;
+                    // Если пуля не пробивная - уничтожаем
+                    if (!bullet.pierceEnemies)
+                    {
+                        bullet.isDespawning = true;
+                        if (bullet.HasStateAuthority) bullet.Runner.Despawn(bullet.Object);
+                    }
                 }
             }
 

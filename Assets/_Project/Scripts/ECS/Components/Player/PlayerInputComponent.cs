@@ -10,5 +10,6 @@ namespace _Project.Scripts.ECS.Components.Player
         public Vector2 AimDirection;
         public NetworkButtons Buttons;
         public NetworkButtons PreviousButtons;
+        public byte SelectedAmmoType;
     }
 }

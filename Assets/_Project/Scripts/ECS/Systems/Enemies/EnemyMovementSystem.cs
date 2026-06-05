@@ -142,7 +142,7 @@ namespace _Project.Scripts.ECS.Systems.Enemies
             // ДОБАВЛЕНО: Применяем замедление от турели (они могут стакаться с другими замедлениями)
             if (CryoLookup.HasComponent(entity))
             {
-                currentSpeed *= CryoLookup[entity].SpeedMultiplier;
+                currentSpeed *= CryoLookup[entity].OriginalSpeed;
             }
 
             var direction = bestTargetPos - enemyPos;

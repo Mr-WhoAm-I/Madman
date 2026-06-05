@@ -1,32 +1,36 @@
+using _Project.Scripts.Data.Weapons;
 using _Project.Scripts.ECS.Components.BuffsAndDebuffs;
 using _Project.Scripts.ECS.Components.Classes;
 using _Project.Scripts.ECS.Components.Combat;
 using _Project.Scripts.ECS.Components.Enemies;
 using _Project.Scripts.ECS.Components.Skills;
+using System;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
-// Добавлено для дебаг логов
 
 namespace _Project.Scripts.ECS.Systems.Combat
 {
     [UpdateInGroup(typeof(FusionUpdateGroup))]
     public partial struct DamageSystem : ISystem
     {
+        // === МОСТ В UI ===
+        // Вызывается каждый раз, когда враг получает урон. 
+        // Передает: Позицию, Количество урона, Тип стихии (для цвета)
+        public static Action<Vector3, float, WeaponElementalType, bool> OnEnemyDamaged;
+
         public void OnUpdate(ref SystemState state)
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             // =======================================================================
-            // 0. ПЕРЕХВАТ УРОНА ЩИТАМИ (Работает для ЛЮБОЙ сущности с щитом)
+            // 0. ПЕРЕХВАТ УРОНА ЩИТАМИ (Оставил без изменений)
             // =======================================================================
             foreach (var (takeDamage, entity) in SystemAPI.Query<RefRW<TakeDamageComponent>>().WithEntityAccess())
             {
                 if (SystemAPI.HasComponent<EnergyShieldComponent>(entity))
                 {
                     var shield = SystemAPI.GetComponent<EnergyShieldComponent>(entity);
-                    
-                    // Сбрасываем таймер "Вне боя" при любом попадании
                     shield.OutOfCombatTimer = 0f;
 
                     if (shield.CurrentShield > 0f)
@@ -36,43 +40,32 @@ namespace _Project.Scripts.ECS.Systems.Combat
 
                         if (shield.CurrentShield >= incomingDamage)
                         {
-                            // Щит выдержал весь урон
                             shield.CurrentShield -= incomingDamage;
                             absorbedDamage = incomingDamage;
-                            takeDamage.ValueRW.Amount = 0f; // Обнуляем урон
-                            
-                            Debug.Log($"<color=#00FFFF>[ЩИТ]</color> Урон {incomingDamage} полностью поглощен! Остаток щита: {shield.CurrentShield}");
+                            takeDamage.ValueRW.Amount = 0f; 
                         }
                         else
                         {
-                            // Щит пробит!
                             absorbedDamage = shield.CurrentShield;
                             takeDamage.ValueRW.Amount -= shield.CurrentShield;
                             shield.CurrentShield = 0f;
-                            
-                            Debug.Log($"<color=#00FFFF>[ЩИТ ПРОБИТ]</color> Поглощено {absorbedDamage} урона. В здоровье прошло: {takeDamage.ValueRO.Amount}");
                         }
 
-                        // === МЕХАНИКА: ШИПОВАННЫЙ БАРЬЕР (ВОЗВРАТ УРОНА) ===
                         if (SystemAPI.HasComponent<SkillConfigComponent>(entity))
                         {
                             var config = SystemAPI.GetComponent<SkillConfigComponent>(entity);
                             if (config.ShieldReflect > 0f && takeDamage.ValueRO.SourceEntity != Entity.Null)
                             {
                                 float reflectedDamage = absorbedDamage * config.ShieldReflect;
-                                
-                                // Создаем новую команду урона для атакующего
                                 ecb.AddComponent(takeDamage.ValueRO.SourceEntity, new TakeDamageComponent
                                 {
                                     Amount = reflectedDamage,
-                                    SourceEntity = entity // Источник - владелец щита
+                                    SourceEntity = entity,
+                                    Element = WeaponElementalType.Physical
                                 });
-                                
-                                Debug.Log($"<color=#DA70D6>[ШИПОВАННЫЙ БАРЬЕР]</color> Отражено {reflectedDamage} урона обратно во врага!");
                             }
                         }
                     }
-                    
                     SystemAPI.SetComponent(entity, shield);
                 }
             }
@@ -80,7 +73,6 @@ namespace _Project.Scripts.ECS.Systems.Combat
             // --- ЛОГИКА 1: Урон игрокам/сетевым объектам ---
             foreach (var (takeDamage, healthLink) in SystemAPI.Query<RefRO<TakeDamageComponent>, HealthLinkComponent>())
             {
-                // ИГНОРИРУЕМ, ЕСЛИ УРОН БЫЛ ПОГЛОЩЕН ЩИТОМ
                 if (takeDamage.ValueRO.Amount <= 0f) continue; 
 
                 if (healthLink.Value != null && healthLink.Value.Object != null && healthLink.Value.Object.IsValid)
@@ -92,24 +84,55 @@ namespace _Project.Scripts.ECS.Systems.Combat
                 }
             }
 
-            // --- ЛОГИКА 2: Урон врагам и ВАМПИРИЗМ ---
-            foreach (var (takeDamage, enemyHealth, entity) in SystemAPI.Query<RefRO<TakeDamageComponent>, RefRW<EnemyHealthComponent>>().WithEntityAccess())
+            // --- ЛОГИКА 2: Урон врагам, стихии и вызов UI ---
+            foreach (var (takeDamage, enemyHealth, transform, entity) in SystemAPI.Query<RefRW<TakeDamageComponent>, RefRW<EnemyHealthComponent>, RefRO<LocalTransform>>().WithEntityAccess())
             {
                 float damageAmount = takeDamage.ValueRO.Amount;
-                
+                WeaponElementalType element = takeDamage.ValueRO.Element;
+                bool isCrit = takeDamage.ValueRO.IsCritical; // ЧИТАЕМ ФЛАГ!
+            
                 if (damageAmount > 0f)
                 {
+                    // ВЫЗЫВАЕМ СОБЫТИЕ ДЛЯ UI
+                    OnEnemyDamaged?.Invoke(transform.ValueRO.Position, damageAmount, element, isCrit);
+
                     // === МЕХАНИКА: ХРУПКИЙ ЛЕД ===
                     if (state.EntityManager.HasComponent<FrostVulnerabilityComponent>(entity))
                     {
                         var vuln = state.EntityManager.GetComponentData<FrostVulnerabilityComponent>(entity);
-                        damageAmount *= (1.0f + vuln.Multiplier); // Урон увеличивается на 50%
+                        damageAmount *= (1.0f + vuln.Multiplier); 
                     }
 
                     enemyHealth.ValueRW.CurrentHealth -= damageAmount;
                     Entity attacker = takeDamage.ValueRO.SourceEntity;
+
+                    // === НОВОЕ: ЭЛЕМЕНТАЛЬНЫЕ СТАТУСЫ ===
+                    if (element == WeaponElementalType.Fire)
+                    {
+                        // Накладываем статус горения (например, 5 урона каждые 0.5 сек, 6 раз)
+                        ecb.AddComponent(entity, new BurningDebuffComponent
+                        {
+                            Timer = 0.5f,
+                            TickRate = 0.5f,
+                            DamagePerTick = 5f,
+                            TicksRemaining = 6,
+                            SourceEntity = attacker
+                        });
+                    }
+                    else if (element == WeaponElementalType.Cryo)
+                    {
+                        // Заморозка (если у моба еще нет этого компонента)
+                        if (!state.EntityManager.HasComponent<CryoDebuffComponent>(entity))
+                        {
+                            ecb.AddComponent(entity, new CryoDebuffComponent
+                            {
+                                OriginalSpeed = 1f, // TODO: брать реальную скорость врага
+                                Timer = 3f          // Время заморозки
+                            });
+                        }
+                    }
                     
-                    // === МЕХАНИКА: ИСТЯЗАНИЕ (Ядовитые пули клона) ===
+                    // === МЕХАНИКА: ИСТЯЗАНИЕ ===
                     if (attacker != Entity.Null && state.EntityManager.HasComponent<CloneComponent>(attacker))
                     {
                         var cloneComp = state.EntityManager.GetComponentData<CloneComponent>(attacker);
@@ -138,7 +161,7 @@ namespace _Project.Scripts.ECS.Systems.Combat
                             {
                                 ecb.AddComponent(entity, new CryoDebuffComponent 
                                 { 
-                                    SpeedMultiplier = turretComp.CryoMultiplier, 
+                                    OriginalSpeed = turretComp.CryoMultiplier, 
                                     Timer = turretComp.CryoDuration 
                                 });
                             }
@@ -184,7 +207,6 @@ namespace _Project.Scripts.ECS.Systems.Combat
                         {
                             var config = state.EntityManager.GetComponentData<SkillConfigComponent>(realAttacker);
                             
-                            // 1. КРОВАВАЯ ЖАТВА (ШИЗОИД)
                             if (config.KillCooldownReduction > 0f && state.EntityManager.HasComponent<SkillStateComponent>(realAttacker))
                             {
                                 var skillState = state.EntityManager.GetComponentData<SkillStateComponent>(realAttacker);
@@ -195,30 +217,24 @@ namespace _Project.Scripts.ECS.Systems.Combat
                                 }
                             }
 
-                            // 2. ОСКОЛОЧНЫЙ ВЗРЫВ (МЕЛАНХОЛИК)
                             if (config.ShrapnelDeath > 0 && state.EntityManager.HasComponent<ApathyDebuffComponent>(entity))
                             {
                                 var apathy = state.EntityManager.GetComponentData<ApathyDebuffComponent>(entity);
                                 
-                                // Проверяем, что враг был ПОЛНОСТЬЮ заморожен в момент смерти
                                 if (apathy.FreezeTimer > 0f) 
                                 {
                                     var deadPos = state.EntityManager.GetComponentData<LocalTransform>(entity).Position;
                                     
-                                    // Добавляем команду в буфер стрелка
                                     DynamicBuffer<SpawnShrapnelCommand> buffer;
                                     if (!state.EntityManager.HasBuffer<SpawnShrapnelCommand>(realAttacker))
                                         buffer = ecb.AddBuffer<SpawnShrapnelCommand>(realAttacker);
                                     else
                                         buffer = state.EntityManager.GetBuffer<SpawnShrapnelCommand>(realAttacker);
 
-                                    // Добавляем N осколков в очередь на спавн
                                     for (int i = 0; i < config.ShrapnelDeath; i++)
                                     {
                                         buffer.Add(new SpawnShrapnelCommand { Position = deadPos, TargetEnemy = Entity.Null });
                                     }
-                                    
-                                    Debug.Log($"<color=#E0FFFF>[ОСКОЛОЧНЫЙ ВЗРЫВ]</color> Моб разорван на {config.ShrapnelDeath} льдин(ы)!");
                                 }
                             }
                         }

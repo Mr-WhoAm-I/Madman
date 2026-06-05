@@ -1,9 +1,8 @@
 using System.Collections.Generic;
+using _Project.Scripts.Data.Weapons; // Для доступа к WeaponElementalType
 using Fusion;
 using Unity.Entities;
 using UnityEngine;
-
-// ДОБАВЛЕНО для работы с Entity
 
 namespace _Project.Scripts.Network.Gameplay
 {
@@ -12,26 +11,39 @@ namespace _Project.Scripts.Network.Gameplay
         public float speed = 10f;
         public float damage = 25f;
         
-        // ДОБАВЛЕНО: Ссылка на ECS-сущность стрелка (Игрока или Клона)
         public Entity SourceEntity; 
         
         public static readonly List<BulletNetworkMovement> ActiveBullets = new();
-        public bool isHit; 
         
         [Networked] private TickTimer LifeTimer { get; set; }
 
-        // ИСПРАВЛЕНО: Добавлен параметр sourceEntity
-        public void InitNetworkState(float lifeTime, float newDamage, float newSpeed, Entity sourceEntity)
+        // --- НОВЫЕ ПЕРЕМЕННЫЕ ---
+        public bool pierceEnemies;
+        public WeaponElementalType currentElement;
+        public bool isCritical;
+        
+        public bool isDespawning; 
+        public HashSet<Entity> HitEntities = new();
+            
+        // Коллекция для предотвращения двойного урона при пробивании
+        private HashSet<Health> _hitTargets = new(); 
+
+        public void InitNetworkState(float lifeTime, float newDamage, float newSpeed, Entity sourceEntity, bool pierce, WeaponElementalType element, bool isCrit)
         {
             LifeTimer = TickTimer.CreateFromSeconds(Runner, lifeTime);
             damage = newDamage;
             speed = newSpeed;
-            SourceEntity = sourceEntity; // Запоминаем автора
+            SourceEntity = sourceEntity; 
+            pierceEnemies = pierce;
+            currentElement = element;
+            isCritical = isCrit;
         }
         
         public override void Spawned()
         {
             ActiveBullets.Add(this);
+            HitEntities.Clear();
+            isDespawning = false;
 
             if (HasStateAuthority)
             {
@@ -42,6 +54,7 @@ namespace _Project.Scripts.Network.Gameplay
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             ActiveBullets.Remove(this);
+            HitEntities.Clear();
         }
 
         public override void FixedUpdateNetwork()
@@ -53,17 +66,6 @@ namespace _Project.Scripts.Network.Gameplay
                 Runner.Despawn(Object);
             }
         }
-
-        private void OnTriggerEnter2D(Collider2D other)
-        {
-            if (!HasStateAuthority) return;
-
-            if (other.TryGetComponent<Health>(out var health))
-            {
-                if (Object.InputAuthority == health.Object.InputAuthority) return;
-                health.TakeDamage(damage);
-                Runner.Despawn(Object);
-            }
-        }
+        
     }
 }
