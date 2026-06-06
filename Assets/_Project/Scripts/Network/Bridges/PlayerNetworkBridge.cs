@@ -241,7 +241,7 @@ namespace _Project.Scripts.Network.Bridges
                     if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicSkill)
                     {
                         // Разворачиваем снаряд по вектору джойстика
-                        float angle = Mathf.Atan2(command.CastDirection.y, command.CastDirection.x) * Mathf.Rad2Deg - 90f;
+                        float angle = Mathf.Atan2(command.CastDirection.y, command.CastDirection.x) * Mathf.Rad2Deg;
                         Quaternion rotation = Quaternion.Euler(0, 0, angle);
 
                         // Спавним с небольшим смещением вперед, чтобы не задеть самого себя

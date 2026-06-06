@@ -33,7 +33,6 @@ namespace _Project.Scripts.UI
         public List<UIWindow> GameWindows = new();
 
         // --- ПЕРЕМЕННЫЕ ВЗАИМОДЕЙСТВИЯ ---
-        public bool IsInteractionSuspended { get; private set; } // Открыто ли сейчас меню?
         private string _cachedInteractionText = "";
         private bool _isInteractionActive = false; // Стоит ли игрок в зоне триггера?
 
@@ -115,7 +114,6 @@ namespace _Project.Scripts.UI
         public void SetupHubLayout()
         {
             CloseCurrentWindow(); // Закрываем любые окна при смене сцены
-            IsInteractionSuspended = false;
             if (playerStatusPanel) playerStatusPanel.SetActive(true);
             if (hubOverlayPanel) hubOverlayPanel.SetActive(true);
             if (battleOverlayPanel) battleOverlayPanel.SetActive(false);
@@ -126,7 +124,6 @@ namespace _Project.Scripts.UI
         public void SetupBattleLayout()
         {
             CloseCurrentWindow(); // Закрываем любые окна при смене сцены
-            IsInteractionSuspended = false;
             if (playerStatusPanel) playerStatusPanel.SetActive(true);
             if (hubOverlayPanel) hubOverlayPanel.SetActive(false);
             if (battleOverlayPanel) battleOverlayPanel.SetActive(true);
@@ -141,26 +138,13 @@ namespace _Project.Scripts.UI
         {
             _cachedInteractionText = objectName;
             _isInteractionActive = true;
-            
-            if (!IsInteractionSuspended) DrawPrompt();
+            DrawPrompt();
         }
 
         public void HideInteractionPrompt()
         {
             _isInteractionActive = false;
             if (interactionPromptPanel) interactionPromptPanel.SetActive(false);
-        }
-
-        public void SuspendInteractionPrompt()
-        {
-            IsInteractionSuspended = true;
-            if (interactionPromptPanel) interactionPromptPanel.SetActive(false);
-        }
-
-        public void ResumeInteractionPrompt()
-        {
-            IsInteractionSuspended = false;
-            if (_isInteractionActive) DrawPrompt();
         }
 
         private void DrawPrompt()
@@ -212,9 +196,6 @@ namespace _Project.Scripts.UI
                 _currentOpenWindow = targetWindow;
                 _currentOpenWindow.Open();
                 
-                // СИНЕРГИЯ: Прячем кнопку "Е", потому что игрок открыл окно
-                SuspendInteractionPrompt(); 
-                
                 Debug.Log($"[WindowManager] Открыто окно: {type}");
             }
         }
@@ -227,8 +208,6 @@ namespace _Project.Scripts.UI
             _currentOpenWindow.Close();
             _currentOpenWindow = null;
 
-            // СИНЕРГИЯ: Возвращаем кнопку "Е" (если игрок всё ещё в триггере)
-            ResumeInteractionPrompt();
         }
 
         public void ToggleWindow(UIWindowType type)

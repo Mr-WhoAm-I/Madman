@@ -8,12 +8,9 @@ using _Project.Scripts.UI;
 
 namespace _Project.Scripts.Hub
 {
-    public class WardrobeUIManager : MonoBehaviour
+    public class WardrobeUIManager : HubWindowBase
     {
         public static WardrobeUIManager Instance;
-
-        [Header("UI Элементы Окна")]
-        public CanvasGroup windowGroup;
 
         [Header("Тексты Уровня (0-Ист, 1-Пар, 2-Шиз, 3-Мел)")]
         public TextMeshProUGUI[] levelTexts; 
@@ -24,34 +21,12 @@ namespace _Project.Scripts.Hub
         [Header("Полоски Опыта (Опционально)")]
         public Slider[] expSliders;
 
-        private void Awake()
+        protected override void Awake()
         {
+            base.Awake(); // Обязательно вызываем логику базового окна!
             Instance = this;
-            CloseWindow();
         }
-
-        public void OpenWindow()
-        {
-            // 1. Перед показом окна подтягиваем свежие данные из профиля!
-            UpdateProgressUI(); 
-
-            // 2. Показываем окно
-            windowGroup.alpha = 1f;
-            windowGroup.interactable = true;
-            windowGroup.blocksRaycasts = true;
-        }
-
-        public void CloseWindow()
-        {
-            windowGroup.alpha = 0f;
-            windowGroup.interactable = false;
-            windowGroup.blocksRaycasts = false;
-            if (HUDManager.Instance != null)
-            {
-                HUDManager.Instance.ResumeInteractionPrompt();
-            }
-        }
-
+        
         public void OnHystericClicked() => SendChangeRequest(0);
         public void OnParanoiacClicked() => SendChangeRequest(1);
         public void OnSchizoidClicked() => SendChangeRequest(2);
@@ -87,15 +62,17 @@ namespace _Project.Scripts.Hub
                 player.Rpc_ChangeArchetype(classIndex, currentLevel);
                 break;
             }
-            
-            CloseWindow();
         }
 
+        protected override void OnWindowOpened()
+        {
+            UpdateProgressUI();
+        }
+        
         private void UpdateProgressUI()
         {
-            if (ProfileController.Instance == null || ProfileController.Instance.CurrentProfile == null)
+            if (!ProfileController.Instance || ProfileController.Instance.CurrentProfile == null)
             {
-                Debug.LogWarning("[WardrobeUIManager] Нет профиля для обновления UI Гардероба.");
                 return;
             }
 

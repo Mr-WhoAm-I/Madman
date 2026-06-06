@@ -364,7 +364,7 @@ namespace _Project.Scripts.Network.Gameplay
             if (!TryGetNearestEnemy(out float3 nearestEnemyPos)) return false;
 
             var direction = ((Vector3)nearestEnemyPos - transform.position).normalized;
-            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
+            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             var baseRotation = Quaternion.Euler(0, 0, angle);
 
             var rightDirection = Vector3.Cross(direction, Vector3.forward);

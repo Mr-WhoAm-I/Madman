@@ -1,39 +1,23 @@
+using _Project.Scripts.UI;
 using Fusion;
 using UnityEngine;
 
 namespace _Project.Scripts.Hub
 {
-    public class MissionUIManager : MonoBehaviour
+    public class MissionUIManager : HubWindowBase
     {
         public static MissionUIManager Instance;
-
-        [Header("UI")]
-        public CanvasGroup windowGroup;
         
         [Header("Настройки перехода")]
         [Tooltip("Индекс боевой сцены в окне Build Settings (обычно 1)")]
         public int gameSceneIndex = 1; 
 
-        private void Awake()
+        protected override void Awake()
         {
+            base.Awake(); // Обязательно вызываем логику базового окна!
             Instance = this;
-            CloseWindow();
         }
-
-        public void OpenWindow()
-        {
-            windowGroup.alpha = 1f;
-            windowGroup.interactable = true;
-            windowGroup.blocksRaycasts = true;
-        }
-
-        public void CloseWindow()
-        {
-            windowGroup.alpha = 0f;
-            windowGroup.interactable = false;
-            windowGroup.blocksRaycasts = false;
-        }
-
+        
         public void StartMission()
         {
             var runner = FindAnyObjectByType<NetworkRunner>();

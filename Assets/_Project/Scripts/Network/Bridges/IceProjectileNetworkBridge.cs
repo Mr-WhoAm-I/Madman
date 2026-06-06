@@ -85,7 +85,7 @@ namespace _Project.Scripts.Network.Bridges
                     float3 targetPos = em.GetComponentData<LocalTransform>(_targetEntity).Position;
                     Vector3 dir = math.normalize(targetPos - currentPos);
                     
-                    float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+                    float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
                     transform.rotation = Quaternion.Euler(0, 0, angle);
                     transform.position += dir * _speed * Runner.DeltaTime;
 

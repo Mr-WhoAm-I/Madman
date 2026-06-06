@@ -16,8 +16,7 @@ namespace _Project.Scripts.Network.Gameplay
         public static readonly List<BulletNetworkMovement> ActiveBullets = new();
         
         [Networked] private TickTimer LifeTimer { get; set; }
-
-        // --- НОВЫЕ ПЕРЕМЕННЫЕ ---
+        
         public bool pierceEnemies;
         public WeaponElementalType currentElement;
         public bool isCritical;
@@ -25,6 +24,12 @@ namespace _Project.Scripts.Network.Gameplay
         public bool isDespawning; 
         public HashSet<Entity> HitEntities = new();
             
+        [Header("Спрайты стихий")]
+        public Sprite physicalSprite;
+        public Sprite fireSprite;
+        public Sprite cryoSprite;
+        public Sprite toxicSprite;
+        
         // Коллекция для предотвращения двойного урона при пробивании
         private HashSet<Health> _hitTargets = new(); 
 
@@ -49,6 +54,7 @@ namespace _Project.Scripts.Network.Gameplay
             {
                 LifeTimer = TickTimer.CreateFromSeconds(Runner, 2.0f);
             }
+            UpdateSprite();
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -59,7 +65,7 @@ namespace _Project.Scripts.Network.Gameplay
 
         public override void FixedUpdateNetwork()
         {
-            transform.position += transform.up * speed * Runner.DeltaTime;
+            transform.position += transform.right * speed * Runner.DeltaTime;
 
             if (HasStateAuthority && LifeTimer.Expired(Runner))
             {
@@ -67,5 +73,17 @@ namespace _Project.Scripts.Network.Gameplay
             }
         }
         
+        private void UpdateSprite()
+        {
+            var sr = GetComponent<SpriteRenderer>();
+            sr.sprite = currentElement switch
+            {
+                WeaponElementalType.Physical => physicalSprite,
+                WeaponElementalType.Fire => fireSprite,
+                WeaponElementalType.Cryo => cryoSprite,
+                WeaponElementalType.Toxic => toxicSprite,
+                _ => sr.sprite
+            };
+        }
     }
 }

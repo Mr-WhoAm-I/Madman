@@ -209,7 +209,7 @@ namespace _Project.Scripts.Network.Managers
         {
             var inputData = new NetworkInputData();
 
-            if (HUDManager.Instance != null && HUDManager.Instance.IsInteractionSuspended)
+            if (HUDManager.Instance != null)
             {
                 input.Set(inputData);
                 return;

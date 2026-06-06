@@ -30,5 +30,15 @@ namespace _Project.Scripts.Data.Weapons
         [Header("Снаряд")]
         public NetworkPrefabRef bulletPrefab;
         public WeaponElementalType innateElement = WeaponElementalType.Physical;
+        
+        [Header("Данные для Арсенала")]
+        [Tooltip("Уникальный строковый ID (например: pistol_chaos_9)")]
+        public string weaponID; 
+        
+        [Tooltip("Базовая цена разблокировки оружия")]
+        public int unlockCost;
+        
+        [Tooltip("Базовая цена первого улучшения (будет расти с уровнем)")]
+        public int upgradeBaseCost = 500;
     }
 }

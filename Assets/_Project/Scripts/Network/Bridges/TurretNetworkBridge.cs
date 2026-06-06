@@ -198,12 +198,19 @@ namespace _Project.Scripts.Network.Bridges
                 var targetDir = FindClosestEnemyDirection();
                 if (targetDir != Vector2.zero)
                 {
+                    // === ААА-ФИКС: ДИНАМИЧЕСКАЯ СТИХИЯ ===
+                    WeaponElementalType bulletElement = WeaponElementalType.Physical;
+                    
                     if (config.TurretCryo)
                     {
+                        bulletElement = WeaponElementalType.Cryo; // Заряжаем лед!
                         Debug.Log($"<color=#00FFFF>[КРИО-СНАРЯДЫ]</color> Выстрел с эффектом заморозки!");
                     }
 
-                    Runner.Spawn(_skillData.bulletPrefab, transform.position, Quaternion.LookRotation(Vector3.forward, targetDir), OwnerPlayer, (runner, obj) =>
+                    float angle = Mathf.Atan2(targetDir.y, targetDir.x) * Mathf.Rad2Deg;
+                    Quaternion rotation = Quaternion.Euler(0, 0, angle);
+
+                    Runner.Spawn(_skillData.bulletPrefab, transform.position, rotation, OwnerPlayer, (runner, obj) =>
                     {
                         var bullet = obj.GetComponent<BulletNetworkMovement>();
                         if (bullet != null)
@@ -213,8 +220,8 @@ namespace _Project.Scripts.Network.Bridges
                                 _skillData.bulletDamage, 
                                 _skillData.bulletSpeed, 
                                 _turretEntity, 
-                                false,                          // pierceEnemies (турель не пробивает насквозь)
-                                WeaponElementalType.Physical,    // currentElement (обычный физический урон)
+                                false,                          
+                                bulletElement,  
                                 false
                             ); 
                         }

@@ -20,5 +20,5 @@ MonoBehaviour:
   maxMana: 200
   weaponSlotsCount: 1
   allowedWeaponCategory: 2
-  defaultWeapon: {fileID: 11400000, guid: a6b44a60772f5724fa51a273d80828a3, type: 2}
+  defaultWeapon: {fileID: 11400000, guid: 52dc95fc645e94d45bf8834bf36cc64b, type: 2}
   activeSkillData: {fileID: 11400000, guid: 2d42f790b9f304e49b5106036a96f5b5, type: 2}
