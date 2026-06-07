@@ -22,7 +22,14 @@ namespace _Project.Scripts.Network.Gameplay
     {
         [Header("Экипированное оружие")]
         public WeaponData[] equippedWeapons = new WeaponData[2];
-
+        [Networked, Capacity(2)] public NetworkArray<NetworkString<_32>> EquippedWeaponIDs { get; }
+        
+        [Header("Визуал оружия")]
+        public WeaponCatalogData weaponCatalog; // Ссылка на глобальный каталог пушек
+        public Transform[] handSlots = new Transform[2]; // Точки (пустышки) рук персонажа
+        private GameObject[,] _spawnedVisuals = new GameObject[2, 2];
+        private GameObject[] _activeWeaponModels = new GameObject[2];
+        
         // ИЗМЕНЕНИЕ: Сетевой массив таймеров для поддержки любого количества слотов
         [Networked, Capacity(4)] private NetworkArray<TickTimer> WeaponCooldowns { get; }
 
@@ -33,6 +40,7 @@ namespace _Project.Scripts.Network.Gameplay
         private EntityQuery _enemyQuery;
         private PlayerManager _playerManager;
         private PlayerNetworkBridge _bridge;
+        private ChangeDetector _changeDetector;
         private bool _isClone;
 
         public override void Spawned()
@@ -41,17 +49,123 @@ namespace _Project.Scripts.Network.Gameplay
             _bridge = GetComponent<PlayerNetworkBridge>();
             _isClone = GetComponent<CloneNetworkBridge>() != null;
 
-            if (!HasStateAuthority) return;
-            
-            _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform));
-            ValidateWeapons();
-            if (!HasStateAuthority) return;
-            for (var i = 0; i < equippedWeapons.Length; i++)
+            if (HasStateAuthority)
             {
-                if (equippedWeapons[i] != null && equippedWeapons[i].ammoSystem == AmmoType.Magazine)
+                _enemyQuery = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(typeof(EnemyTagComponent), typeof(LocalTransform));
+                
+                // === ФИКС 3: ЧИТАЕМ СОХРАНЕНИЯ ОРУЖИЯ ИЗ ХАБА ===
+                if (ProfileController.Instance != null && weaponCatalog != null)
                 {
-                    LoadedAmmoType.Set(i, 0);
-                    CurrentAmmo.Set(i, equippedWeapons[i].magazineSize);
+                    var profile = ProfileController.Instance.CurrentProfile;
+                    var prog = profile.GetProgressForArchetype(profile.LastSelectedArchetypeID);
+                    
+                    for (int i = 0; i < 2; i++)
+                    {
+                        string savedID = prog.EquippedWeaponIDs[i];
+                        if (!string.IsNullOrEmpty(savedID))
+                        {
+                            equippedWeapons[i] = weaponCatalog.GetWeaponByID(savedID);
+                        }
+                    }
+                }
+
+                ValidateWeapons();
+                
+                // Записываем обновленные пушки в сеть
+                for (var i = 0; i < equippedWeapons.Length; i++)
+                {
+                    if (equippedWeapons[i] != null)
+                    {
+                        EquippedWeaponIDs.Set(i, equippedWeapons[i].weaponID);
+                        
+                        if (equippedWeapons[i].ammoSystem == AmmoType.Magazine)
+                        {
+                            LoadedAmmoType.Set(i, 0);
+                            CurrentAmmo.Set(i, equippedWeapons[i].magazineSize);
+                        }
+                    }
+                }
+            }
+
+            // Инициализация графики для всех клиентов
+            _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
+            UpdateWeaponVisuals();
+        }
+
+        // === ВИЗУАЛЬНАЯ ЛОГИКА ===
+        public override void Render()
+        {
+            foreach (var change in _changeDetector.DetectChanges(this))
+            {
+                if (change == nameof(EquippedWeaponIDs))
+                {
+                    UpdateWeaponVisuals();
+                }
+            }
+
+            UpdateWeaponsRotation();
+        }
+
+        private void UpdateWeaponVisuals()
+        {
+            if (weaponCatalog == null) return;
+
+            for (int i = 0; i < EquippedWeaponIDs.Length; i++)
+            {
+                string weaponID = EquippedWeaponIDs.Get(i).ToString();
+                if (string.IsNullOrEmpty(weaponID)) continue;
+
+                var data = weaponCatalog.GetWeaponByID(weaponID);
+                if (data == null || data.visualPrefabRight == null || data.visualPrefabLeft == null) continue;
+
+                if (_spawnedVisuals[i, 0] != null && _spawnedVisuals[i, 0].name == data.visualPrefabRight.name + "(Clone)")
+                    continue;
+
+                if (_spawnedVisuals[i, 0] != null) Destroy(_spawnedVisuals[i, 0]);
+                if (_spawnedVisuals[i, 1] != null) Destroy(_spawnedVisuals[i, 1]);
+
+                if (handSlots[i] != null)
+                {
+                    _spawnedVisuals[i, 0] = Instantiate(data.visualPrefabRight, handSlots[i]);
+                    _spawnedVisuals[i, 1] = Instantiate(data.visualPrefabLeft, handSlots[i]);
+
+                    _spawnedVisuals[i, 0].transform.localPosition = Vector3.zero;
+                    _spawnedVisuals[i, 1].transform.localPosition = Vector3.zero;
+
+                    _spawnedVisuals[i, 0].SetActive(true);
+                    _spawnedVisuals[i, 1].SetActive(false);
+                }
+            }
+        }
+
+        private void UpdateWeaponsRotation()
+        {
+            if (!TryGetNearestEnemy(out float3 nearestEnemyPos)) return;
+            Vector3 targetPos = nearestEnemyPos;
+
+            for (int i = 0; i < handSlots.Length; i++)
+            {
+                var rightPrefab = _spawnedVisuals[i, 0];
+                var leftPrefab = _spawnedVisuals[i, 1];
+
+                if (rightPrefab == null || leftPrefab == null || handSlots[i] == null) continue;
+
+                Vector3 aimDirection = (targetPos - handSlots[i].position).normalized;
+                float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
+
+                bool isAimingLeft = Mathf.Abs(angle) > 90f;
+
+                if (isAimingLeft)
+                {
+                    rightPrefab.SetActive(false);
+                    leftPrefab.SetActive(true);
+                    leftPrefab.transform.rotation = Quaternion.Euler(0, 0, angle - 180f);
+                }
+                else
+                {
+                    leftPrefab.SetActive(false);
+                    rightPrefab.SetActive(true);
+                    rightPrefab.transform.rotation = Quaternion.Euler(0, 0, angle);
                 }
             }
         }
@@ -359,7 +473,7 @@ namespace _Project.Scripts.Network.Gameplay
         }
 
         // === ОБНОВЛЕННЫЕ МЕТОДЫ ВЫСТРЕЛА (Передаем currentElement) ===
-        private bool TryFireWeapon(WeaponData weapon, int slotIndex, WeaponElementalType currentElement)
+       private bool TryFireWeapon(WeaponData weapon, int slotIndex, WeaponElementalType currentElement)
         {
             if (!TryGetNearestEnemy(out float3 nearestEnemyPos)) return false;
 
@@ -367,9 +481,34 @@ namespace _Project.Scripts.Network.Gameplay
             var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             var baseRotation = Quaternion.Euler(0, 0, angle);
 
-            var rightDirection = Vector3.Cross(direction, Vector3.forward);
-            var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
-            var finalSpawnPos = transform.position + spawnOffset;
+            Vector3 finalSpawnPos = transform.position; // Позиция по умолчанию
+
+            // === ИЩЕМ ДУЛО ОРУЖИЯ ===
+            GameObject activeVisual = null;
+            
+            // Проверяем, какой префаб (правый или левый) сейчас включен в этом слоте
+            if (_spawnedVisuals[slotIndex, 0] != null && _spawnedVisuals[slotIndex, 0].activeSelf)
+                activeVisual = _spawnedVisuals[slotIndex, 0];
+            else if (_spawnedVisuals[slotIndex, 1] != null && _spawnedVisuals[slotIndex, 1].activeSelf)
+                activeVisual = _spawnedVisuals[slotIndex, 1];
+
+            if (activeVisual != null)
+            {
+                // Ищем наш маячок внутри включенного префаба
+                var muzzle = activeVisual.GetComponentInChildren<WeaponMuzzle>();
+                if (muzzle != null)
+                {
+                    // Если дуло найдено — пуля вылетит ровно оттуда!
+                    finalSpawnPos = muzzle.transform.position;
+                }
+                else
+                {
+                    // Фолбек: если забыли повесить WeaponMuzzle, стреляем со сдвигом как раньше
+                    var rightDirection = Vector3.Cross(direction, Vector3.forward);
+                    var spawnOffset = rightDirection * (slotIndex == 0 ? -0.3f : 0.3f);
+                    finalSpawnPos = transform.position + spawnOffset;
+                }
+            }
 
             var (finalDamage, isCrit) = CalculateDamage(weapon);
             Entity shooterEntity = GetShooterEntity();

@@ -11,6 +11,8 @@ namespace _Project.Scripts.Hub
     {
         [Header("База Данных")]
         public WeaponCatalogData weaponCatalog;
+        [Header("Верхняя Панель (Экономика)")]
+        public TextMeshProUGUI crystalsBalanceText;
 
         [Header("Левая Панель (Слоты)")]
         public Button[] classTabs; // 0-Ист, 1-Пар, 2-Шиз, 3-Мел
@@ -38,7 +40,25 @@ namespace _Project.Scripts.Hub
         private int _currentArchetypeIndex = 0;
         private WeaponData _selectedWeapon;
         
+        // === КЭШ СОСТОЯНИЯ ===
+        private string _pendingWeaponID; 
+        private int _pendingActionCost; 
+        private bool _isPendingUpgrade;
         
+        
+        protected virtual void Awake()
+        {
+            base.Awake();
+            upgradeButton.onClick.AddListener(OnUpgradeOrUnlockButtonClicked);
+            equipButton.onClick.AddListener(OnEquipButtonClicked);
+        }
+
+        protected virtual void OnDestroy()
+        {
+            upgradeButton.onClick.RemoveListener(OnUpgradeOrUnlockButtonClicked);
+            equipButton.onClick.RemoveListener(OnEquipButtonClicked);
+        }
+
         protected override void OnWindowOpened()
         {
             if (ProfileController.Instance)
@@ -46,6 +66,7 @@ namespace _Project.Scripts.Hub
                 _currentArchetypeIndex = ProfileController.Instance.CurrentProfile.LastSelectedArchetypeID;
             }
             SelectClassTab(_currentArchetypeIndex);
+            UpdateBalanceUI();
         }
 
         public void SelectClassTab(int index)
@@ -57,14 +78,14 @@ namespace _Project.Scripts.Hub
             foreach (Transform child in weaponListContainer) Destroy(child.gameObject);
 
             // Определяем категорию оружия по классу
-            WeaponCategory targetCategory = WeaponCategory.Handguns;
-            switch (index)
+            var targetCategory = index switch
             {
-                case 0: targetCategory = WeaponCategory.Handguns; break;
-                case 1: targetCategory = WeaponCategory.Shotguns; break;
-                case 2: targetCategory = WeaponCategory.SniperRifles; break;
-                case 3: targetCategory = WeaponCategory.AssaultRifles; break;
-            }
+                0 => WeaponCategory.Handguns,
+                1 => WeaponCategory.Shotguns,
+                2 => WeaponCategory.SniperRifles,
+                3 => WeaponCategory.AssaultRifles,
+                _ => WeaponCategory.Handguns
+            };
 
             var weapons = weaponCatalog.GetWeaponsByCategory(targetCategory);
             var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(_currentArchetypeIndex);
@@ -93,47 +114,49 @@ namespace _Project.Scripts.Hub
         public void SelectWeapon(WeaponData weapon)
         {
             _selectedWeapon = weapon;
-            var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(_currentArchetypeIndex);
+            var profile = ProfileController.Instance.CurrentProfile;
+            var progression = profile.GetProgressForArchetype(_currentArchetypeIndex);
             var saveInfo = progression.GetWeaponData(weapon.weaponID);
 
             bool isUnlocked = saveInfo.IsUnlocked || weapon.unlockCost == 0;
 
+            // Кэшируем ID для обработчиков кнопок
+            _pendingWeaponID = weapon.weaponID;
+
             weaponNameText.text = weapon.weaponName;
             levelText.text = isUnlocked ? $"УРОВЕНЬ {saveInfo.Level}" : "ЗАБЛОКИРОВАНО";
 
-            // === МАТЕМАТИКА ПРОКАЧКИ (ААА-Стандарт) ===
-            // Урон растет на 5% за каждый уровень (на 1 уровне множитель 1.0)
             float damageMultiplier = 1f + (saveInfo.Level - 1) * 0.05f;
-            float actualDamage = weapon.damage * damageMultiplier;
-
-            damageText.text = actualDamage.ToString("F1");
+            damageText.text = (weapon.damage * damageMultiplier).ToString("F1");
             fireRateText.text = weapon.fireRate.ToString("F2");
             magazineText.text = weapon.magazineSize.ToString();
 
-            // Настройка кнопок
-            upgradeButton.onClick.RemoveAllListeners();
-            equipButton.onClick.RemoveAllListeners();
-
+            // 2. БОЛЬШЕ НИКАКИХ RemoveAllListeners И ЗАМЫКАНИЙ
             if (!isUnlocked)
             {
                 equipButton.interactable = false;
                 equipButtonText.text = "НЕДОСТУПНО";
                 
-                upgradeCostText.text = $"КУПИТЬ: {weapon.unlockCost}";
-                upgradeButton.onClick.AddListener(() => UnlockWeapon(weapon.weaponID, weapon.unlockCost));
+                _pendingActionCost = weapon.unlockCost;
+                _isPendingUpgrade = false; // Это покупка
+                
+                bool canAfford = profile.Crystals >= _pendingActionCost;
+                upgradeCostText.text = $"КУПИТЬ: {_pendingActionCost}";
+                upgradeButton.interactable = canAfford;
             }
             else
             {
                 equipButton.interactable = true;
                 equipButtonText.text = IsWeaponEquipped(weapon.weaponID) ? "СНЯТЬ" : "ВЫБРАТЬ";
-                equipButton.onClick.AddListener(() => ToggleEquipWeapon(weapon.weaponID));
 
                 if (saveInfo.Level < 30)
                 {
-                    int upgradeCost = weapon.upgradeBaseCost * saveInfo.Level; // Цена растет с уровнем
-                    upgradeCostText.text = $"УЛУЧШИТЬ: {upgradeCost}";
-                    upgradeButton.onClick.AddListener(() => UpgradeWeapon(weapon.weaponID, upgradeCost));
-                    upgradeButton.interactable = true;
+                    _pendingActionCost = weapon.upgradeBaseCost * saveInfo.Level;
+                    _isPendingUpgrade = true; // Это улучшение
+                    
+                    bool canAfford = profile.Crystals >= _pendingActionCost;
+                    upgradeCostText.text = $"УЛУЧШИТЬ: {_pendingActionCost}";
+                    upgradeButton.interactable = canAfford;
                 }
                 else
                 {
@@ -142,26 +165,38 @@ namespace _Project.Scripts.Hub
                 }
             }
         }
-
-        private void UnlockWeapon(string weaponID, int cost)
+        
+        private void OnUpgradeOrUnlockButtonClicked()
         {
-            // Здесь должна быть проверка валюты (например, Кристаллов из профиля). 
-            // Пока считаем, что денег хватает.
-            var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(_currentArchetypeIndex);
-            progression.UnlockWeapon(weaponID);
-            ProfileController.Instance.SaveGame();
+            if (string.IsNullOrEmpty(_pendingWeaponID)) return;
+
+            var profile = ProfileController.Instance.CurrentProfile;
             
-            SelectClassTab(_currentArchetypeIndex); // Перерисовываем UI
+            if (profile.TrySpendCrystals(_pendingActionCost))
+            {
+                var progression = profile.GetProgressForArchetype(_currentArchetypeIndex);
+                
+                if (_isPendingUpgrade)
+                    progression.UpgradeWeapon(_pendingWeaponID);
+                else
+                    progression.UnlockWeapon(_pendingWeaponID);
+                
+                // 3. ОТЛОЖЕННОЕ СОХРАНЕНИЕ (Или выносим в OnWindowClosed)
+                SaveGameState(); 
+                
+                UpdateBalanceUI();
+                
+                if (!_isPendingUpgrade)
+                    SelectClassTab(_currentArchetypeIndex); // Перерисовываем список, если купили
+                else
+                    SelectWeapon(_selectedWeapon); // Обновляем статы, если улучшили
+            }
         }
 
-        private void UpgradeWeapon(string weaponID, int cost)
+        private void OnEquipButtonClicked()
         {
-            // Здесь проверка валюты
-            var progression = ProfileController.Instance.CurrentProfile.GetProgressForArchetype(_currentArchetypeIndex);
-            progression.UpgradeWeapon(weaponID);
-            ProfileController.Instance.SaveGame();
-            
-            SelectWeapon(_selectedWeapon); // Обновляем статы
+            if (string.IsNullOrEmpty(_pendingWeaponID)) return;
+            ToggleEquipWeapon(_pendingWeaponID);
         }
 
         private void ToggleEquipWeapon(string weaponID)
@@ -216,6 +251,17 @@ namespace _Project.Scripts.Hub
             }
         }
         
-        // Вызывать из UnityEvent (Терминала) вместо обычного Open()
+        private void UpdateBalanceUI()
+        {
+            if (crystalsBalanceText && ProfileController.Instance)
+            {
+                crystalsBalanceText.text = ProfileController.Instance.CurrentProfile.Crystals.ToString();
+            }
+        }
+        
+        private void SaveGameState()
+        {
+            ProfileController.Instance.SaveGame(); 
+        }
     }
 }

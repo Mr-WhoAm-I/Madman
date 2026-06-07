@@ -17,6 +17,10 @@ namespace _Project.Scripts.UI
         {
             _inputBlockers = Mathf.Max(0, _inputBlockers - 1);
         }
+        public static void ResetAllBlockers()
+        {
+            _inputBlockers = 0;
+        }
 
 #if UNITY_EDITOR
         public static int DebugBlockers => _inputBlockers;

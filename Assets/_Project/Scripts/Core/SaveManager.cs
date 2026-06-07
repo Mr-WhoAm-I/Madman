@@ -14,7 +14,6 @@ namespace _Project.Scripts.Core
         {
             var json = JsonUtility.ToJson(profile, true);
             File.WriteAllText(FilePath, json);
-            Debug.Log($"[SaveManager] Профиль сохранен по пути: {FilePath}");
         }
 
         public static PlayerProfile LoadProfile()

@@ -1,16 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 namespace _Project.Scripts.Data.Core
 {
     [Serializable]
     public class PlayerProfile
     {
-        // ИСПРАВЛЕНИЕ: Убрали вызов Random.Range из инлайн-инициализатора полей. 
-        // Теперь здесь только безопасная базовая строка.
         public string Nickname = "Player";
         public int LastSelectedArchetypeID = 0;
+        
+        [SerializeField] private int _crystals = 1000; // Даем 1000 для тестов
+        public int Crystals => _crystals;
+        
         public List<ArchetypeEntry> ProgressList = new ();
 
         [Serializable]
@@ -28,6 +31,19 @@ namespace _Project.Scripts.Data.Core
             var newData = new PlayerProgressionData();
             ProgressList.Add(new ArchetypeEntry { ArchetypeID = archetypeID, Data = newData });
             return newData;
+        }
+        
+        public bool TrySpendCrystals(int amount)
+        {
+            if (amount < 0 || _crystals < amount) return false;
+            
+            _crystals -= amount;
+            return true;
+        }
+
+        public void AddCrystals(int amount)
+        {
+            if (amount > 0) _crystals += amount;
         }
     }
 }

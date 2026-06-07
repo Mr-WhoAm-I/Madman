@@ -1,5 +1,67 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &260149489987672361
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2488636434196905508}
+  m_Layer: 6
+  m_Name: HandSlot_2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2488636434196905508
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 260149489987672361}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.5, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5418109527810692047}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &947833463902827664
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 569033387999430321}
+  m_Layer: 6
+  m_Name: HandSlot_1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &569033387999430321
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 947833463902827664}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.5, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5418109527810692047}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6598462556209755569
 GameObject:
   m_ObjectHideFlags: 0
@@ -39,7 +101,9 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 569033387999430321}
+  - {fileID: 2488636434196905508}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &8619697322323138292
@@ -139,10 +203,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.Network.PlayerNetworkBridge
   _NetworkArchetypeID: 0
+  _NetworkCurrency: 0
+  startingFireAmmo: 10
+  startingCryoAmmo: 10
+  startingToxicAmmo: 10
+  _PurchasedUpgrades: []
   _NetworkCurrentCooldown: 0
   _NetworkMaxCooldown: 0
   _NetworkCurrentCharges: 0
   _NetworkMaxCharges: 0
+  _NetworkIsDashing:
+    _value: 0
+  _NetworkDashDirection: {x: 0, y: 0}
+  _NetworkDashTimeLeft: 0
+  _NetworkDashSpeed: 0
+  _NetworkFireAmmo: 0
+  _NetworkCryoAmmo: 0
+  _NetworkToxicAmmo: 0
 --- !u!114 &55891212620523115
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -193,6 +270,11 @@ MonoBehaviour:
   equippedWeapons:
   - {fileID: 11400000, guid: 97ffe27f349da4341bfd62cbe2da74ca, type: 2}
   - {fileID: 11400000, guid: 275d4e9257a903e499f9558a29d6c759, type: 2}
+  _EquippedWeaponIDs: []
+  weaponCatalog: {fileID: 11400000, guid: d543691d26391ca4193401239c59db3d, type: 2}
+  handSlots:
+  - {fileID: 569033387999430321}
+  - {fileID: 2488636434196905508}
 --- !u!114 &-179104619915421629
 MonoBehaviour:
   m_ObjectHideFlags: 0

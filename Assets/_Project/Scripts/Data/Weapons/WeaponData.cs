@@ -12,6 +12,8 @@ namespace _Project.Scripts.Data.Weapons
         [Header("Базовые характеристики")]
         public string weaponName = "Новое оружие";
         public WeaponCategory category;
+        public GameObject visualPrefabRight; // Префаб, где дуло смотрит вправо
+        public GameObject visualPrefabLeft;
         public float damage = 25f;
         public float fireRate = 0.3f; // Задержка между выстрелами
         

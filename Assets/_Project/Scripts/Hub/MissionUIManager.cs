@@ -18,7 +18,7 @@ namespace _Project.Scripts.Hub
             if (runner != null && runner.IsServer) 
             {
                 Debug.Log("[Сервер] Запуск миссии. Переход всех игроков на боевую сцену...");
-                
+                UIState.ResetAllBlockers();
                 // ПРАВИЛЬНЫЙ СИНТАКСИС FUSION 2
                 runner.LoadScene(SceneRef.FromIndex(gameSceneIndex));
             }

@@ -1292,7 +1292,7 @@ MonoBehaviour:
   _IsShopPhase:
     _value: 1
   timeToCollectLoot: 5
-  shopPhaseDuration: 30
+  shopPhaseDuration: 5
 --- !u!4 &2049929460
 Transform:
   m_ObjectHideFlags: 0
