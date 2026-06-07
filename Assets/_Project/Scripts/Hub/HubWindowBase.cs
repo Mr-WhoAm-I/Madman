@@ -1,3 +1,4 @@
+using _Project.Scripts.UI;
 using UnityEngine;
 using UnityEngine.EventSystems; // Обязательно для фикса залипания!
 
@@ -20,25 +21,35 @@ namespace _Project.Scripts.Hub
 
         public virtual void Open()
         {
+            if (IsOpen) return;
+
             IsOpen = true;
+
             _windowGroup.alpha = 1f;
             _windowGroup.interactable = true;
             _windowGroup.blocksRaycasts = true;
+
+            UIState.BlockInput();
+
             OnWindowOpened();
         }
 
         public virtual void Close()
         {
+            if (!IsOpen) return;
+
             IsOpen = false;
+
             _windowGroup.alpha = 0f;
             _windowGroup.interactable = false;
             _windowGroup.blocksRaycasts = false;
 
-            // КРИТИЧЕСКИЙ ФИКС БАГА С WASD: Сбрасываем фокус с кнопок UI!
             if (EventSystem.current)
             {
                 EventSystem.current.SetSelectedGameObject(null);
             }
+
+            UIState.UnblockInput();
 
             OnWindowClosed();
         }

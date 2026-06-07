@@ -209,7 +209,7 @@ namespace _Project.Scripts.Network.Managers
         {
             var inputData = new NetworkInputData();
 
-            if (HUDManager.Instance != null)
+            if (UIState.IsInputBlocked)
             {
                 input.Set(inputData);
                 return;

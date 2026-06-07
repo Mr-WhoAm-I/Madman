@@ -37,16 +37,18 @@ namespace _Project.Scripts.Hub
             }
 
             // 2. Проверяем нажатие "Е"
-            if (!_controls.Gameplay.Interact.WasPressedThisFrame()) return;
-            if (targetWindow.IsOpen)
+            if (_controls.Gameplay.Interact.WasPressedThisFrame())
             {
-                targetWindow.Close();
-                if (_hud) _hud.ShowInteractionPrompt(buildingName);
-            }
-            else
-            {
-                targetWindow.Open();
-                if (_hud) _hud.HideInteractionPrompt();
+                if (targetWindow.IsOpen)
+                {
+                    targetWindow.Close();
+                    if (_hud) _hud.ShowInteractionPrompt(buildingName);
+                }
+                else
+                {
+                    targetWindow.Open();
+                    if (_hud) _hud.HideInteractionPrompt();
+                }
             }
         }
 

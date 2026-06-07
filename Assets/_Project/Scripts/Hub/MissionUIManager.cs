@@ -6,17 +6,10 @@ namespace _Project.Scripts.Hub
 {
     public class MissionUIManager : HubWindowBase
     {
-        public static MissionUIManager Instance;
         
         [Header("Настройки перехода")]
         [Tooltip("Индекс боевой сцены в окне Build Settings (обычно 1)")]
         public int gameSceneIndex = 1; 
-
-        protected override void Awake()
-        {
-            base.Awake(); // Обязательно вызываем логику базового окна!
-            Instance = this;
-        }
         
         public void StartMission()
         {

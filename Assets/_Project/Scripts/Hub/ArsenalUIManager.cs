@@ -9,7 +9,6 @@ namespace _Project.Scripts.Hub
 {
     public class ArsenalUIManager : HubWindowBase
     {
-        public static ArsenalUIManager Instance;
         [Header("База Данных")]
         public WeaponCatalogData weaponCatalog;
 
@@ -39,11 +38,6 @@ namespace _Project.Scripts.Hub
         private int _currentArchetypeIndex = 0;
         private WeaponData _selectedWeapon;
         
-        protected override void Awake()
-        {
-            base.Awake(); // Обязательно вызываем логику базового окна!
-            Instance = this;
-        }
         
         protected override void OnWindowOpened()
         {

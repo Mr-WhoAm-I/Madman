@@ -40,6 +40,7 @@ namespace _Project.Scripts.UI
         private bool _isMobile;
         private PlayerControls _inputActions;
         private UIWindow _currentOpenWindow;
+        public bool IsWindowOpen => _currentOpenWindow != null;
         private Dictionary<UIWindowType, UIWindow> _windowCache = new();
 
         private void Awake()

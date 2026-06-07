@@ -10,8 +10,6 @@ namespace _Project.Scripts.Hub
 {
     public class WardrobeUIManager : HubWindowBase
     {
-        public static WardrobeUIManager Instance;
-
         [Header("Тексты Уровня (0-Ист, 1-Пар, 2-Шиз, 3-Мел)")]
         public TextMeshProUGUI[] levelTexts; 
 
@@ -20,12 +18,7 @@ namespace _Project.Scripts.Hub
 
         [Header("Полоски Опыта (Опционально)")]
         public Slider[] expSliders;
-
-        protected override void Awake()
-        {
-            base.Awake(); // Обязательно вызываем логику базового окна!
-            Instance = this;
-        }
+        
         
         public void OnHystericClicked() => SendChangeRequest(0);
         public void OnParanoiacClicked() => SendChangeRequest(1);
