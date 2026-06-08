@@ -1,3 +1,5 @@
+// Путь: Assets/_Project/Scripts/ECS/Systems/Player/SkillInputSystem.cs
+using _Project.Scripts.ECS.Components.Combat; // <-- НОВОЕ
 using _Project.Scripts.ECS.Components.Player;
 using _Project.Scripts.ECS.Components.Skills;
 using _Project.Scripts.Network;
@@ -15,31 +17,31 @@ namespace _Project.Scripts.ECS.Systems.Player
         {
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-            foreach (var (input, skillState, bridgeRef, entity) in 
-                     SystemAPI.Query<RefRO<PlayerInputComponent>, RefRO<SkillStateComponent>, PlayerBridgeReference>().WithEntityAccess())
+            foreach (var (input, skillState, mana, config, entity) in 
+                     SystemAPI.Query<RefRO<PlayerInputComponent>, RefRO<SkillStateComponent>, RefRW<ManaComponent>, RefRO<SkillConfigComponent>>().WithEntityAccess())
             {
-                // ИСПРАВЛЕНИЕ: Убрали IsForward предохранитель. 
-                // Системы ввода должны работать на каждом тике, так как инпут Fusion идеально откатывается в прошлое!
                 var currentInput = input.ValueRO;
                 
                 var isSkillButtonPressed = currentInput.Buttons.IsSet(PlayerInputButtons.Skill) && 
                                            !currentInput.PreviousButtons.IsSet(PlayerInputButtons.Skill);
 
-                if (isSkillButtonPressed && skillState.ValueRO.IsReady)
+                // ПРОВЕРКА МАНЫ: Добавили проверку mana.ValueRO.CurrentMana >= config.ValueRO.ManaCost
+                if (!isSkillButtonPressed || !skillState.ValueRO.IsReady ||
+                    !(mana.ValueRO.CurrentMana >= config.ValueRO.ManaCost)) continue;
+                if (SystemAPI.GetComponentLookup<ExecuteSkillRequest>().HasComponent(entity)) continue;
+                // ТРАТА МАНЫ: Списываем ману и обновляем таймер задержки регена прямо в ECS
+                mana.ValueRW.CurrentMana -= config.ValueRO.ManaCost;
+                mana.ValueRW.RegenCooldownTimer = config.ValueRO.ManaRegenCooldown;
+
+                ecb.AddComponent(entity, new ExecuteSkillRequest
                 {
-                    if (!SystemAPI.GetComponentLookup<ExecuteSkillRequest>().HasComponent(entity))
-                    {
-                        ecb.AddComponent(entity, new ExecuteSkillRequest
-                        {
-                            AimDirection = currentInput.AimDirection,
-                            TargetPosition = float3.zero 
-                        });
-                    }
-                }
+                    AimDirection = currentInput.AimDirection,
+                    TargetPosition = float3.zero
+                });
             }
 
             ecb.Playback(state.EntityManager);
-            ecb.Dispose(); 
+            ecb.Dispose();
         }
     }
 }

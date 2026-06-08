@@ -3,6 +3,7 @@ using _Project.Scripts.Data.Shop;
 using _Project.Scripts.Data.Skills;
 using _Project.Scripts.ECS.Components.Classes;
 using _Project.Scripts.ECS.Components.Combat;
+using _Project.Scripts.ECS.Components.Core;
 using _Project.Scripts.ECS.Components.Player;
 using _Project.Scripts.ECS.Components.Skills;
 using _Project.Scripts.Gameplay;
@@ -23,6 +24,7 @@ namespace _Project.Scripts.Network.Bridges
     {
         [Networked] public int NetworkArchetypeID { get; set; }
         [Networked] public int NetworkCurrency { get; set; }
+        [Networked] public float NetworkCurrentMana { get; set; }   
         // --- СЕТЕВОЙ ИНВЕНТАРЬ ПАТРОНОВ ---
         [Header("Стартовые патроны (Дебаг)")]
         public int startingFireAmmo = 10;
@@ -69,11 +71,14 @@ namespace _Project.Scripts.Network.Bridges
                 typeof(PlayerMovementComponent),
                 typeof(LocalTransform),
                 typeof(TargetableComponent),
-                typeof(SkillStateComponent) 
+                typeof(SkillStateComponent),
+                typeof(ManaComponent),
+                typeof(FragmentsComponent)
             );
 
             _entityManager.SetComponentData(_playerEntity, new PlayerMovementComponent { MoveSpeed = 5f });
             _entityManager.SetComponentData(_playerEntity, LocalTransform.FromPosition(transform.position));
+            _entityManager.AddComponentData(_playerEntity, new NetworkAuthorityComponent { HasStateAuthority = HasStateAuthority });
             _entityManager.AddComponentData(_playerEntity, new HealthLinkComponent { Value = GetComponent<Health>() });
             _entityManager.AddComponentData(_playerEntity, new PlayerOwnerComponent { Player = Object.InputAuthority });
             _entityManager.AddComponentData(_playerEntity, new CritStateComponent { NonCritStreak = 0 });
@@ -137,7 +142,31 @@ namespace _Project.Scripts.Network.Bridges
                 skillState.MaxCharges = NetworkMaxCharges;
                 _entityManager.SetComponentData(_playerEntity, skillState);
             }
+            
+            // --- СИНХРОНИЗАЦИЯ МАНЫ ДЛЯ КЛИЕНТОВ ---
+            if (_entityManager.HasComponent<ManaComponent>(_playerEntity))
+            {
+                var manaComp = _entityManager.GetComponentData<ManaComponent>(_playerEntity);
+                
+                if (HasStateAuthority) 
+                {
+                    // PUSH (СЕРВЕР): Burst-система посчитала новую ману, Мост берет её и шлет клиентам
+                    NetworkCurrentMana = manaComp.CurrentMana;
+                }
+                else 
+                {
+                    // PULL (КЛИЕНТ): Клиент просто забирает данные из сети в свой ECS
+                    manaComp.CurrentMana = NetworkCurrentMana;
+                    _entityManager.SetComponentData(_playerEntity, manaComp);
+                }
+            }
 
+            if (_entityManager.HasComponent<FragmentsComponent>(_playerEntity))
+            {
+                // Синхронизируем Фрагменты миссии в ECS-компонент
+                _entityManager.SetComponentData(_playerEntity, new FragmentsComponent { Value = NetworkCurrency });
+            }
+            
             var targetable = _entityManager.GetComponentData<TargetableComponent>(_playerEntity);
             if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
             {
@@ -358,7 +387,7 @@ namespace _Project.Scripts.Network.Bridges
             var maxCharges = 1;
             var castDist = 4f;
             var effectRad = 5f;
-
+            
             if (archetypeData != null && archetypeData.activeSkillData != null) 
             {
                 skillCooldown = archetypeData.activeSkillData.cooldown;
@@ -373,6 +402,10 @@ namespace _Project.Scripts.Network.Bridges
                 NetworkCurrentCooldown = 0f;
                 NetworkMaxCharges = maxCharges;
                 NetworkCurrentCharges = maxCharges;
+                if (archetypeData != null)
+                {
+                    NetworkCurrentMana = archetypeData.maxMana;
+                }
             }
 
             _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
@@ -460,6 +493,10 @@ namespace _Project.Scripts.Network.Bridges
                 CastDistance = castDist,
                 EffectRadius = effectRad,
                 
+                BaseMaxMana = archetypeData != null ? archetypeData.maxMana : 100f,
+                ManaRegenRate = archetypeData != null ? archetypeData.manaRegenRate : 5f,
+                ManaRegenCooldown = archetypeData != null ? archetypeData.manaRegenCooldown : 2f,
+                ManaCost = (archetypeData != null && archetypeData.activeSkillData != null) ? archetypeData.activeSkillData.manaCost : 20f,
                 // Наполнение конфига Истерика
                 DashSpeed = dashSpd,
                 DashDuration = dashDur,
@@ -662,6 +699,10 @@ namespace _Project.Scripts.Network.Bridges
                 case UpgradeType.CritChance: config.CritChance += upgrade.value; break;
                 case UpgradeType.CritDamage: config.CritDamage += upgrade.value; break;
                 case UpgradeType.MagnetRadius: config.MagnetRadius += upgrade.value; break;
+                // --- АПГРЕЙДЫ МАНЫ ---
+                case UpgradeType.MaxMana: config.BaseMaxMana += upgrade.value; break;
+                case UpgradeType.ManaRegenRate: config.ManaRegenRate += upgrade.value; break;
+                case UpgradeType.ManaCostReduction: config.ManaCost -= (config.ManaCost * upgrade.value); break;
                 
                 case UpgradeType.MoveSpeed:
                     var movement = _entityManager.GetComponentData<PlayerMovementComponent>(_playerEntity);
@@ -725,6 +766,27 @@ namespace _Project.Scripts.Network.Bridges
 
             // Сохраняем измененные данные обратно в ECS
             _entityManager.SetComponentData(_playerEntity, config);
+        }
+        
+        // Безопасный метод списания маны. Возвращает true, если транзакция успешна.
+        public bool TrySpendMana(float amount)
+        {
+            if (!HasStateAuthority || amount <= 0f || NetworkCurrentMana < amount) 
+                return false;
+            
+            NetworkCurrentMana -= amount;
+
+            if (!_entityManager.Exists(_playerEntity) ||
+                !_entityManager.HasComponent<ManaComponent>(_playerEntity)) return true;
+            var manaComp = _entityManager.GetComponentData<ManaComponent>(_playerEntity);
+            var config = _entityManager.GetComponentData<SkillConfigComponent>(_playerEntity);
+                
+            manaComp.CurrentMana = NetworkCurrentMana;
+            manaComp.RegenCooldownTimer = config.ManaRegenCooldown; 
+                
+            _entityManager.SetComponentData(_playerEntity, manaComp);
+
+            return true;
         }
     }
 }

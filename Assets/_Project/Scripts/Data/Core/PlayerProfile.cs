@@ -11,8 +11,8 @@ namespace _Project.Scripts.Data.Core
         public string Nickname = "Player";
         public int LastSelectedArchetypeID = 0;
         
-        [SerializeField] private int _crystals = 1000; // Даем 1000 для тестов
-        public int Crystals => _crystals;
+        [SerializeField] private int _memoryShards = 1000; // Осколки памяти (Мета-валюта)
+        public int MemoryShards => _memoryShards;
         
         public List<ArchetypeEntry> ProgressList = new ();
 
@@ -33,17 +33,18 @@ namespace _Project.Scripts.Data.Core
             return newData;
         }
         
-        public bool TrySpendCrystals(int amount)
+        // Безопасная транзакция с защитой от отрицательных значений
+        public bool TrySpendMemoryShards(int amount)
         {
-            if (amount < 0 || _crystals < amount) return false;
+            if (amount < 0 || _memoryShards < amount) return false;
             
-            _crystals -= amount;
+            _memoryShards -= amount;
             return true;
         }
 
-        public void AddCrystals(int amount)
+        public void AddMemoryShards(int amount)
         {
-            if (amount > 0) _crystals += amount;
+            if (amount > 0) _memoryShards += amount;
         }
     }
 }

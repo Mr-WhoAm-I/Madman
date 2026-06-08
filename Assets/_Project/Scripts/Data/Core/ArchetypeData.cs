@@ -16,6 +16,8 @@ namespace _Project.Scripts.Data.Core
         public float maxHealth = 100f;
         public float moveSpeed = 5f;
         public float maxMana = 100f;
+        public float manaRegenRate = 5f;
+        public float manaRegenCooldown = 2f;
 
         [Header("Инвентарь и Оружие")]
         public int weaponSlotsCount = 1;

@@ -8,6 +8,11 @@ namespace _Project.Scripts.ECS.Components.Skills
         public float CastDistance;
         public float EffectRadius;
         
+        public float BaseMaxMana;
+        public float ManaRegenRate;
+        public float ManaRegenCooldown;
+        public float ManaCost;
+        
         // Параметры Истерика
         public float DashSpeed;
         public float DashDuration;

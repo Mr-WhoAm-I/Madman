@@ -140,7 +140,7 @@ namespace _Project.Scripts.Hub
                 _pendingActionCost = weapon.unlockCost;
                 _isPendingUpgrade = false; // Это покупка
                 
-                bool canAfford = profile.Crystals >= _pendingActionCost;
+                bool canAfford = profile.MemoryShards >= _pendingActionCost;
                 upgradeCostText.text = $"КУПИТЬ: {_pendingActionCost}";
                 upgradeButton.interactable = canAfford;
             }
@@ -154,7 +154,7 @@ namespace _Project.Scripts.Hub
                     _pendingActionCost = weapon.upgradeBaseCost * saveInfo.Level;
                     _isPendingUpgrade = true; // Это улучшение
                     
-                    bool canAfford = profile.Crystals >= _pendingActionCost;
+                    bool canAfford = profile.MemoryShards >= _pendingActionCost;
                     upgradeCostText.text = $"УЛУЧШИТЬ: {_pendingActionCost}";
                     upgradeButton.interactable = canAfford;
                 }
@@ -172,7 +172,7 @@ namespace _Project.Scripts.Hub
 
             var profile = ProfileController.Instance.CurrentProfile;
             
-            if (profile.TrySpendCrystals(_pendingActionCost))
+            if (profile.TrySpendMemoryShards(_pendingActionCost))
             {
                 var progression = profile.GetProgressForArchetype(_currentArchetypeIndex);
                 
@@ -255,7 +255,7 @@ namespace _Project.Scripts.Hub
         {
             if (crystalsBalanceText && ProfileController.Instance)
             {
-                crystalsBalanceText.text = ProfileController.Instance.CurrentProfile.Crystals.ToString();
+                crystalsBalanceText.text = ProfileController.Instance.CurrentProfile.MemoryShards.ToString();
             }
         }
         

@@ -62,6 +62,10 @@ namespace _Project.Scripts.Data.Shop
         TornadoMultiplier,    // Множитель для навыка "Смерч"
         
         AuraRadius,         // ДОБАВЛЕНО: Радиус Ауры уныния
-        ShieldPerFreeze     // ДОБАВЛЕНО: Процент щита за заморозку (Ледяной доспех)
+        ShieldPerFreeze,     // ДОБАВЛЕНО: Процент щита за заморозку (Ледяной доспех)
+        
+        MaxMana,
+        ManaRegenRate,
+        ManaCostReduction
     }
 }

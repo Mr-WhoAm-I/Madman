@@ -1291,8 +1291,8 @@ MonoBehaviour:
   levelScenario: {fileID: 11400000, guid: 5288dcd5db6b0ce49a0e34728e34d40e, type: 2}
   _IsShopPhase:
     _value: 1
-  timeToCollectLoot: 5
-  shopPhaseDuration: 5
+  timeToCollectLoot: 2
+  shopPhaseDuration: 45
 --- !u!4 &2049929460
 Transform:
   m_ObjectHideFlags: 0

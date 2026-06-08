@@ -17,5 +17,8 @@ namespace _Project.Scripts.Data.Skills
         
         [Tooltip("Радиус действия (если применимо к навыку)")]
         public float effectRadius = 5f;
+        
+        [Tooltip("Стоимость маны для применения навыка")]
+        public float manaCost = 20f;
     }
 }
