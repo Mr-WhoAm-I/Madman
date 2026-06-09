@@ -169,7 +169,7 @@ namespace _Project.Scripts.Gameplay
 
             // --- ДОБАВЛЕНО: Выдаем врагу его персональную награду ---
             // (Позже мы можем умножать baseBounty на множитель волны CurrentWaveIndex)
-            int finalBounty = data.baseBounty; 
+            int finalBounty = data.CalculateBounty(level); 
             _entityManager.AddComponentData(newEnemy, new EnemyLootDropComponent { Bounty = finalBounty });
         }
 

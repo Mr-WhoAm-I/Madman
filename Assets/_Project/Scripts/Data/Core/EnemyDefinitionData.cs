@@ -25,6 +25,12 @@ namespace _Project.Scripts.Data.Core
         [Tooltip("На сколько ускоряется враг (обычно мобы не ускоряются сильно, оставим 0)")]
         public float speedPerLevel = 0f;
 
+        [Header("Экономика")]
+        public int minFragmentsDrop = 1;
+        public int maxFragmentsDrop = 5;
+        [Tooltip("Множитель фрагментов за каждый уровень врага")]
+        public float fragmentMultiplierPerLevel = 0.5f;
+        
         // Метод-помощник для расчета финального здоровья
         public float GetHealthForLevel(int level)
         {
@@ -42,6 +48,14 @@ namespace _Project.Scripts.Data.Core
         public float GetSpeedForLevel(int level)
         {
             return baseSpeed + (speedPerLevel * Mathf.Max(0, level - 1));
+        }
+        
+        public int CalculateBounty(int level)
+        {
+            float baseDrop = Random.Range(minFragmentsDrop, maxFragmentsDrop + 1);
+            // Если уровень 1, бонус = 0. Если уровень 10, бонус = 9 * 0.5 = 4.5 фрагмента
+            int finalDrop = Mathf.RoundToInt(baseDrop + ((level - 1) * fragmentMultiplierPerLevel));
+            return Mathf.Max(1, finalDrop); // Гарантируем, что всегда выпадает минимум 1 фрагмент
         }
     }
 }

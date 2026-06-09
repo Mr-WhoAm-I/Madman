@@ -17,7 +17,9 @@ MonoBehaviour:
   archetypeID: 0
   maxHealth: 150
   moveSpeed: 3
-  maxMana: 100
+  maxMana: 125
+  manaRegenRate: 2
+  manaRegenCooldown: 2
   weaponSlotsCount: 2
   allowedWeaponCategory: 0
   defaultWeapon: {fileID: 11400000, guid: 3b3a63fd4c01f15498bb3c03f845eb8a, type: 2}

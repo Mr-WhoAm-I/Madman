@@ -1,3 +1,4 @@
+using _Project.Scripts.ECS.Authoring; // Для доступа к LootRegistryComponent
 using _Project.Scripts.ECS.Components.Combat;
 using _Project.Scripts.ECS.Components.Core;
 using _Project.Scripts.ECS.Components.Enemies;
@@ -12,21 +13,31 @@ namespace _Project.Scripts.ECS.Systems.Combat
     {
         public void OnUpdate(ref SystemState state)
         {
+            // ИЩЕМ РЕЕСТР ПРЕФАБОВ: Если на сцене нет LootRegistryComponent, прерываемся
+            if (!SystemAPI.TryGetSingleton<LootRegistryComponent>(out var registry))
+                return;
+
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-            // ИСПРАВЛЕНО: Теперь читаем EnemyLootDropComponent
             foreach (var (transform, lootDrop, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<EnemyLootDropComponent>>().WithAll<EnemyTagComponent, DeathTagComponent>().WithEntityAccess())
             {
-                // 1. СПАВН ЛОКАЛЬНОГО ЛУТА
-                var lootEntity = ecb.CreateEntity();
-                ecb.AddComponent(lootEntity, LocalTransform.FromPosition(transform.ValueRO.Position));
+                // 1. СПАВН ПРЕФАБА С ВИЗУАЛОМ (Вместо ecb.CreateEntity())
+                var lootEntity = ecb.Instantiate(registry.FragmentPrefab);
                 
-                // Берем награду конкретно этого врага!
-                ecb.AddComponent(lootEntity, new LootComponent { Value = lootDrop.ValueRO.Bounty }); 
+                // 2. Устанавливаем позицию монетки туда, где умер враг
+                ecb.SetComponent(lootEntity, LocalTransform.FromPosition(transform.ValueRO.Position));
                 
-                ecb.AddComponent(lootEntity, new MagnetStateComponent { IsPulled = false, TargetEntity = Entity.Null });
+                ecb.SetComponent(lootEntity, new LootAnimationComponent 
+                {
+                    BobbingSpeed = 4f,
+                    BobbingAmount = 0.15f,
+                    BasePosition = transform.ValueRO.Position, // Качаемся вокруг точки смерти врага
+                    Timer = 0f
+                });
+                ecb.SetComponent(lootEntity, new LootComponent { Value = lootDrop.ValueRO.Bounty });
+                ecb.SetComponent(lootEntity, new MagnetStateComponent { IsPulled = false, TargetEntity = Entity.Null });
                 
-                // 2. УДАЛЕНИЕ ВРАГА
+                // 4. УДАЛЕНИЕ МЕРТВОГО ВРАГА
                 ecb.DestroyEntity(entity);
             }
 

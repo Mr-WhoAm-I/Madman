@@ -18,6 +18,8 @@ MonoBehaviour:
   maxHealth: 120
   moveSpeed: 5
   maxMana: 300
+  manaRegenRate: 2
+  manaRegenCooldown: 2
   weaponSlotsCount: 1
   allowedWeaponCategory: 3
   defaultWeapon: {fileID: 11400000, guid: 288a4486fa9f834439164b1ea29a916b, type: 2}

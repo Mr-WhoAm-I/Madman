@@ -175,6 +175,7 @@ GameObject:
   m_Component:
   - component: {fileID: 926681715}
   - component: {fileID: 926681714}
+  - component: {fileID: 926681716}
   m_Layer: 0
   m_Name: EnemyRegistry
   m_TagString: Untagged
@@ -214,6 +215,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &926681716
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 926681713}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ec3f751d0cc4585bbbcd22a2c1c4a25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.Scripts.ECS.Authoring.LootRegistryAuthoring
+  FragmentPrefab: {fileID: 386924472248954154, guid: 1431e1c1a7160104885fbb699f67588f, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

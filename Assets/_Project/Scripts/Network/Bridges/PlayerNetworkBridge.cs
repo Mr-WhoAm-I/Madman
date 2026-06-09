@@ -55,6 +55,8 @@ namespace _Project.Scripts.Network.Bridges
         private EntityManager _entityManager;
         private ChangeDetector _changeDetector;
         private SpriteRenderer _spriteRenderer;
+        
+        private int _unsyncedCurrency = 0; // Локальный буфер собранных монет
 
         public Entity PlayerEntity => _playerEntity;
         public EntityManager EntityManager => _entityManager;
@@ -85,7 +87,6 @@ namespace _Project.Scripts.Network.Bridges
             
             // Инициализируем базовый приоритет игрока равным 1.0f.
             _entityManager.SetComponentData(_playerEntity, new TargetableComponent { Priority = 1.0f });
-            
             _entityManager.AddComponentData(_playerEntity, new PlayerBridgeReference { Bridge = this });
             
             if (HasInputAuthority)
@@ -351,6 +352,10 @@ namespace _Project.Scripts.Network.Bridges
             inputComponent.SelectedAmmoType = data.SelectedAmmoType;
                     
             _entityManager.SetComponentData(_playerEntity, inputComponent);
+
+            if (!HasInputAuthority || _unsyncedCurrency <= 0) return;
+            Rpc_AddCurrencyBatched(_unsyncedCurrency);
+            _unsyncedCurrency = 0;
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -377,199 +382,233 @@ namespace _Project.Scripts.Network.Bridges
         }
 
         private void UpdateArchetypeTag(int archetypeID)
+{
+    // 1. Инициализация тега архетипа
+    if (!_entityManager.HasComponent<ArchetypeComponent>(_playerEntity))
+        _entityManager.AddComponent<ArchetypeComponent>(_playerEntity);
+    _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
+
+    // Загружаем ассет класса из Data-слоя
+    var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
+    
+    // Дефолтные значения (Фолбэки) на случай отсутствия ассета
+    var skillCooldown = 5f;
+    var maxCharges = 1;
+    var castDist = 4f;
+    var effectRad = 5f;
+    
+    float targetMaxMana = 100f;
+    float targetManaRegen = 5f;
+    float targetManaRegenCd = 2f;
+    float targetManaCost = 20f;
+    
+    // Извлекаем дизайнерские данные, если ScriptableObject существует
+    if (archetypeData != null)
+    {
+        targetMaxMana = archetypeData.maxMana;
+        targetManaRegen = archetypeData.manaRegenRate;
+        targetManaRegenCd = archetypeData.manaRegenCooldown;
+
+        if (archetypeData.activeSkillData != null)
         {
-            if (!_entityManager.HasComponent<ArchetypeComponent>(_playerEntity))
-                _entityManager.AddComponent<ArchetypeComponent>(_playerEntity);
-            _entityManager.SetComponentData(_playerEntity, new ArchetypeComponent { ArchetypeID = archetypeID });
-
-            var archetypeData = ProfileController.Instance.GetArchetypeAsset(archetypeID);
-            var skillCooldown = 5f;
-            var maxCharges = 1;
-            var castDist = 4f;
-            var effectRad = 5f;
-            
-            if (archetypeData != null && archetypeData.activeSkillData != null) 
-            {
-                skillCooldown = archetypeData.activeSkillData.cooldown;
-                maxCharges = archetypeData.activeSkillData.maxCharges;
-                castDist = archetypeData.activeSkillData.castDistance;
-                effectRad = archetypeData.activeSkillData.effectRadius;
-            }
-
-            if (HasStateAuthority)
-            {
-                NetworkMaxCooldown = skillCooldown;
-                NetworkCurrentCooldown = 0f;
-                NetworkMaxCharges = maxCharges;
-                NetworkCurrentCharges = maxCharges;
-                if (archetypeData != null)
-                {
-                    NetworkCurrentMana = archetypeData.maxMana;
-                }
-            }
-
-            _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
-            { 
-                MaxCooldown = skillCooldown, 
-                CurrentCooldown = 0f, 
-                MaxCharges = maxCharges, 
-                CurrentCharges = maxCharges 
-            });
-
-            if (!_entityManager.HasComponent<SkillConfigComponent>(_playerEntity))
-                _entityManager.AddComponent<SkillConfigComponent>(_playerEntity);
-                
-            // Сборка динамических параметров под конкретные классы
-            var dashSpd = 0f;
-            float dashDur = 0.2f;
-            
-            // Параметры Истерика
-            float furyThreshold = 0.3f;
-            float furySpeedMult = 1.5f;
-            float furyLifesteal = 0f;
-            int tornadoMult = 1;
-            
-            // Параметры Параноика
-            float shieldCap = 100f;
-            float shieldRecharge = 5f;
-            float auraRad = 3f;
-            int maxTurrets = 1;
-            float turretTime = 15f;
-            
-            // Параметры Шизоида 
-            var instabilityTime = 1f;
-            var instabilityMax = 4;
-            var instabilityDmg = 0.2f;
-            var invisDuration = 4f;
-            var cloneExplosionDmg = 150f;
-            var cloneExplosionRad = 3f;
-            
-            // Параметры Меланхолика 
-            var frostSlow = 1f;
-            var apathyMax = 3;
-            var freezeDur = 2f;
-            var chainTargets = 3;
-            var chainDmg = 150f;
-
-            if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericData)
-            {
-                dashSpd = hystericData.dashSpeed;
-                dashDur = hystericData.dashDuration;
-                
-                furyThreshold = hystericData.furyHealthThreshold;
-                furySpeedMult = hystericData.furySpeedMultiplier;
-                furyLifesteal = hystericData.furyLifesteal;
-                tornadoMult = hystericData.tornadoBulletMultiplier;
-            }
-            else if (archetypeData != null && archetypeData.activeSkillData is ParanoiacSkillData paranoiacData)
-            {
-                shieldCap = paranoiacData.shieldCapacity;
-                shieldRecharge = paranoiacData.shieldRechargeTime;
-                auraRad = paranoiacData.shieldAuraRadius;
-                maxTurrets = paranoiacData.maxTurrets;
-                turretTime = paranoiacData.turretLifeTime;
-            }
-            else if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidData)
-            {
-                instabilityTime = schizoidData.timePerInstabilityStack;
-                instabilityMax = schizoidData.maxInstabilityStacks;
-                instabilityDmg = schizoidData.damageMultiplierPerStack;
-                invisDuration = schizoidData.invisibilityDuration;
-                cloneExplosionDmg = schizoidData.cloneExplosionDamage;
-                cloneExplosionRad = schizoidData.cloneExplosionRadius;
-            }
-            else if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicData)
-            {
-                // Переводим 0.2f (20% замедления) в множитель скорости 0.8f
-                frostSlow = 1.0f - melancholicData.slowPercentage; 
-                apathyMax = melancholicData.apathyStacksToFreeze;
-                freezeDur = melancholicData.freezeDuration;
-                chainTargets = melancholicData.chainTargetsCount;
-                chainDmg = melancholicData.chainExplosionDamage;
-            }
-                
-            _entityManager.SetComponentData(_playerEntity, new SkillConfigComponent
-            {
-                CastDistance = castDist,
-                EffectRadius = effectRad,
-                
-                BaseMaxMana = archetypeData != null ? archetypeData.maxMana : 100f,
-                ManaRegenRate = archetypeData != null ? archetypeData.manaRegenRate : 5f,
-                ManaRegenCooldown = archetypeData != null ? archetypeData.manaRegenCooldown : 2f,
-                ManaCost = (archetypeData != null && archetypeData.activeSkillData != null) ? archetypeData.activeSkillData.manaCost : 20f,
-                // Наполнение конфига Истерика
-                DashSpeed = dashSpd,
-                DashDuration = dashDur,
-                FuryHealthThreshold = furyThreshold,
-                FurySpeedMultiplier = furySpeedMult,
-                FuryLifesteal = furyLifesteal,
-                TornadoBulletMultiplier = tornadoMult,
-                
-                // Наполнение конфига Параноика
-                ShieldCapacity = shieldCap,
-                ShieldRechargeTime = shieldRecharge,
-                ShieldAuraRadius = auraRad,
-                MaxTurrets = maxTurrets,
-                TurretLifeTime = turretTime,
-                
-                // Наполнение конфига Шизоида
-                InstabilityTimePerStack = instabilityTime,
-                InstabilityMaxStacks = instabilityMax,
-                InstabilityDamagePerStack = instabilityDmg,
-                InvisibilityDuration = invisDuration,
-                CloneExplosionDamage = cloneExplosionDmg,
-                CloneExplosionRadius = cloneExplosionRad,
-                
-                // Наполнение конфига Меланхолика
-                FrostSlowMultiplier = frostSlow,
-                ApathyMaxStacks = apathyMax,
-                FreezeDuration = freezeDur,
-                ChainTargetsCount = chainTargets,
-                ChainExplosionDamage = chainDmg
-            });
-
-            _entityManager.RemoveComponent<HystericTag>(_playerEntity);
-            _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
-            _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
-            _entityManager.RemoveComponent<SchizoidTag>(_playerEntity);
-            
-            // Чистим пассивные компоненты других классов при смене архетипа
-            if (_entityManager.HasComponent<QuantumInstabilityComponent>(_playerEntity))
-                _entityManager.RemoveComponent<QuantumInstabilityComponent>(_playerEntity);
-            if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
-                _entityManager.RemoveComponent<InvisibilityStateComponent>(_playerEntity);
-            if  (_entityManager.HasComponent<EnergyShieldComponent>(_playerEntity))
-                _entityManager.RemoveComponent<EnergyShieldComponent>(_playerEntity);
-
-            switch (archetypeID)
-            {
-                case 0: 
-                    _entityManager.AddComponent<HystericTag>(_playerEntity); 
-                    break;
-                case 1: 
-                    _entityManager.AddComponent<ParanoiacTag>(_playerEntity); 
-                    // Выдаем щит Параноику!
-                    _entityManager.AddComponentData(_playerEntity, new EnergyShieldComponent 
-                    { 
-                        MaxShield = shieldCap, 
-                        CurrentShield = shieldCap, 
-                        OutOfCombatTimer = 0f 
-                    });
-                    break;
-                case 2: 
-                    _entityManager.AddComponent<SchizoidTag>(_playerEntity);
-                    _entityManager.AddComponentData(_playerEntity, new QuantumInstabilityComponent
-                    {
-                        CurrentStacks = 0,
-                        Timer = 0f,
-                        TimeSinceLastDamage = 10f
-                    });
-                    break;
-                case 3: 
-                    _entityManager.AddComponent<MelancholicTag>(_playerEntity); 
-                    break;
-            }
+            skillCooldown = archetypeData.activeSkillData.cooldown;
+            maxCharges = archetypeData.activeSkillData.maxCharges;
+            castDist = archetypeData.activeSkillData.castDistance;
+            effectRad = archetypeData.activeSkillData.effectRadius;
+            targetManaCost = archetypeData.activeSkillData.manaCost;
         }
+    }
+
+    // =========================================================================
+    // СЕТЕВАЯ И ЛОКАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ (ТОЛЬКО НА СЕРВЕРЕ)
+    // =========================================================================
+    if (HasStateAuthority)
+    {
+        // Синхронизируем кулдауны навыков по сети во Fusion
+        NetworkMaxCooldown = skillCooldown;
+        NetworkCurrentCooldown = 0f;
+        NetworkMaxCharges = maxCharges;
+        NetworkCurrentCharges = maxCharges;
+        
+        // Синхронизируем ману по сети во Fusion
+        NetworkCurrentMana = targetMaxMana; 
+
+        // Инициализируем локальную изменяемую ману в ECS-компоненте
+        if (_entityManager.HasComponent<ManaComponent>(_playerEntity))
+        {
+            _entityManager.SetComponentData(_playerEntity, new ManaComponent 
+            { 
+                CurrentMana = targetMaxMana, 
+                RegenCooldownTimer = 0f 
+            });
+        }
+    }
+
+    // Принудительно выставляем состояние кулдаунов в ECS
+    _entityManager.SetComponentData(_playerEntity, new SkillStateComponent 
+    { 
+        MaxCooldown = skillCooldown, 
+        CurrentCooldown = 0f, 
+        MaxCharges = maxCharges, 
+        CurrentCharges = maxCharges 
+    });
+
+    if (!_entityManager.HasComponent<SkillConfigComponent>(_playerEntity))
+        _entityManager.AddComponent<SkillConfigComponent>(_playerEntity);
+        
+    // Сборка динамических параметров под конкретные классы
+    var dashSpd = 0f;
+    float dashDur = 0.2f;
+    
+    // Параметры Истерика
+    float furyThreshold = 0.3f;
+    float furySpeedMult = 1.5f;
+    float furyLifesteal = 0f;
+    int tornadoMult = 1;
+    
+    // Параметры Параноика
+    float shieldCap = 100f;
+    float shieldRecharge = 5f;
+    float auraRad = 3f;
+    int maxTurrets = 1;
+    float turretTime = 15f;
+    
+    // Параметры Шизоида 
+    var instabilityTime = 1f;
+    var instabilityMax = 4;
+    var instabilityDmg = 0.2f;
+    var invisDuration = 4f;
+    var cloneExplosionDmg = 150f;
+    var cloneExplosionRad = 3f;
+    
+    // Параметры Меланхолика 
+    var frostSlow = 1f;
+    var apathyMax = 3;
+    var freezeDur = 2f;
+    var chainTargets = 3;
+    var chainDmg = 150f;
+
+    if (archetypeData != null && archetypeData.activeSkillData is HystericSkillData hystericData)
+    {
+        dashSpd = hystericData.dashSpeed;
+        dashDur = hystericData.dashDuration;
+        
+        furyThreshold = hystericData.furyHealthThreshold;
+        furySpeedMult = hystericData.furySpeedMultiplier;
+        furyLifesteal = hystericData.furyLifesteal;
+        tornadoMult = hystericData.tornadoBulletMultiplier;
+    }
+    else if (archetypeData != null && archetypeData.activeSkillData is ParanoiacSkillData paranoiacData)
+    {
+        shieldCap = paranoiacData.shieldCapacity;
+        shieldRecharge = paranoiacData.shieldRechargeTime;
+        auraRad = paranoiacData.shieldAuraRadius;
+        maxTurrets = paranoiacData.maxTurrets;
+        turretTime = paranoiacData.turretLifeTime;
+    }
+    else if (archetypeData != null && archetypeData.activeSkillData is SchizoidSkillData schizoidData)
+    {
+        instabilityTime = schizoidData.timePerInstabilityStack;
+        instabilityMax = schizoidData.maxInstabilityStacks;
+        instabilityDmg = schizoidData.damageMultiplierPerStack;
+        invisDuration = schizoidData.invisibilityDuration;
+        cloneExplosionDmg = schizoidData.cloneExplosionDamage;
+        cloneExplosionRad = schizoidData.cloneExplosionRadius;
+    }
+    else if (archetypeData != null && archetypeData.activeSkillData is MelancholicSkillData melancholicData)
+    {
+        frostSlow = 1.0f - melancholicData.slowPercentage; 
+        apathyMax = melancholicData.apathyStacksToFreeze;
+        freezeDur = melancholicData.freezeDuration;
+        chainTargets = melancholicData.chainTargetsCount;
+        chainDmg = melancholicData.chainExplosionDamage;
+    }
+        
+    // Записываем финальный неизменяемый (в рамках тика) конфиг статов в ECS мир
+    _entityManager.SetComponentData(_playerEntity, new SkillConfigComponent
+    {
+        CastDistance = castDist,
+        EffectRadius = effectRad,
+        
+        // --- ДИНАМИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ МАНЫ (БЕЗ ХАРДКОДА) ---
+        BaseMaxMana = targetMaxMana,
+        ManaRegenRate = targetManaRegen,
+        ManaRegenCooldown = targetManaRegenCd,
+        ManaCost = targetManaCost,
+
+        // Наполнение конфига Истерика
+        DashSpeed = dashSpd,
+        DashDuration = dashDur,
+        FuryHealthThreshold = furyThreshold,
+        FurySpeedMultiplier = furySpeedMult,
+        FuryLifesteal = furyLifesteal,
+        TornadoBulletMultiplier = tornadoMult,
+        
+        // Наполнение конфига Параноика
+        ShieldCapacity = shieldCap,
+        ShieldRechargeTime = shieldRecharge,
+        ShieldAuraRadius = auraRad,
+        MaxTurrets = maxTurrets,
+        TurretLifeTime = turretTime,
+        
+        // Наполнение конфига Шизоида
+        InstabilityTimePerStack = instabilityTime,
+        InstabilityMaxStacks = instabilityMax,
+        InstabilityDamagePerStack = instabilityDmg,
+        InvisibilityDuration = invisDuration,
+        CloneExplosionDamage = cloneExplosionDmg,
+        CloneExplosionRadius = cloneExplosionRad,
+        
+        // Наполнение конфига Меланхолика
+        FrostSlowMultiplier = frostSlow,
+        ApathyMaxStacks = apathyMax,
+        FreezeDuration = freezeDur,
+        ChainTargetsCount = chainTargets,
+        ChainExplosionDamage = chainDmg
+    });
+
+    // Очистка тегов и пассивных компонентов других классов
+    _entityManager.RemoveComponent<HystericTag>(_playerEntity);
+    _entityManager.RemoveComponent<ParanoiacTag>(_playerEntity);
+    _entityManager.RemoveComponent<MelancholicTag>(_playerEntity);
+    _entityManager.RemoveComponent<SchizoidTag>(_playerEntity);
+    
+    if (_entityManager.HasComponent<QuantumInstabilityComponent>(_playerEntity))
+        _entityManager.RemoveComponent<QuantumInstabilityComponent>(_playerEntity);
+    if (_entityManager.HasComponent<InvisibilityStateComponent>(_playerEntity))
+        _entityManager.RemoveComponent<InvisibilityStateComponent>(_playerEntity);
+    if (_entityManager.HasComponent<EnergyShieldComponent>(_playerEntity))
+        _entityManager.RemoveComponent<EnergyShieldComponent>(_playerEntity);
+
+    // Выдача новых классовых компонентов на основе ID
+    switch (archetypeID)
+    {
+        case 0: 
+            _entityManager.AddComponent<HystericTag>(_playerEntity); 
+            break;
+        case 1: 
+            _entityManager.AddComponent<ParanoiacTag>(_playerEntity); 
+            _entityManager.AddComponentData(_playerEntity, new EnergyShieldComponent 
+            { 
+                MaxShield = shieldCap, 
+                CurrentShield = shieldCap, 
+                OutOfCombatTimer = 0f 
+            });
+            break;
+        case 2: 
+            _entityManager.AddComponent<SchizoidTag>(_playerEntity);
+            _entityManager.AddComponentData(_playerEntity, new QuantumInstabilityComponent
+            {
+                CurrentStacks = 0,
+                Timer = 0f,
+                TimeSinceLastDamage = 10f
+            });
+            break;
+        case 3: 
+            _entityManager.AddComponent<MelancholicTag>(_playerEntity); 
+            break;
+    }
+}
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
@@ -622,11 +661,16 @@ namespace _Project.Scripts.Network.Bridges
             }
         }
         
+        public void AddCurrencyLocal(int amount)
+        {
+            _unsyncedCurrency += amount;
+        }
+        
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void Rpc_AddCurrency(int amount)
+        public void Rpc_AddCurrencyBatched(int amount)
         {
             NetworkCurrency += amount;
-            Debug.Log($"<color=#FFD700>[ЭКОНОМИКА]</color> Игрок {Object.InputAuthority} подобрал {amount} монет! Всего: {NetworkCurrency}");
+            Debug.Log($"[ЭКОНОМИКА] Игрок подобрал пачку из {amount} фрагментов! Всего: {NetworkCurrency}");
         }
         
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]

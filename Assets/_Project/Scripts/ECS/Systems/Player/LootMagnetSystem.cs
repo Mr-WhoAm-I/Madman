@@ -74,7 +74,7 @@ namespace _Project.Scripts.ECS.Systems.Player
                     if (dist < 0.5f)
                     {
                         // Подбираем! Отправляем RPC на сервер
-                        PlayerNetworkBridge.LocalPlayer.Rpc_AddCurrency(loot.ValueRO.Value);
+                        PlayerNetworkBridge.LocalPlayer.AddCurrencyLocal(loot.ValueRO.Value);
                         
                         // Удаляем ECS-сущность лута с экрана
                         ecb.DestroyEntity(entity);
