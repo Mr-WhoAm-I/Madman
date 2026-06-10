@@ -220,5 +220,19 @@ namespace _Project.Scripts.Gameplay
                 HUDManager.Instance.CloseCurrentWindow(); 
             }
         }
+        
+        public int CalculateSessionReward(int wavesCompleted, int remainingFragments, bool isVictory)
+        {
+            // 1. Гарантированная база за пережитые волны
+            int reward = wavesCompleted * levelScenario.baseMemoryShardsPerWave;
+    
+            // 2. Честный бонус: 20% от неистраченных фрагментов ТОЛЬКО в случае успешного прохождения/побега
+            if (isVictory && remainingFragments > 0)
+            {
+                reward += Mathf.RoundToInt(remainingFragments * 0.2f);
+            }
+    
+            return reward;
+        }
     }
 }

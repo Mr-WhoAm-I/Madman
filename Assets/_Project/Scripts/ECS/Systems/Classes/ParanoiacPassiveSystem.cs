@@ -64,46 +64,47 @@ namespace _Project.Scripts.ECS.Systems.Classes
             var paranoiacShields = paranoiacQuery.ToComponentDataArray<EnergyShieldComponent>(Unity.Collections.Allocator.Temp);
 
             // Проверяем остальных игроков
+            
             foreach (var (transform, entity) in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<PlayerTag>().WithNone<ParanoiacTag>().WithEntityAccess())
             {
                 bool inAura = false;
                 float bonusMaxShield = 0f;
 
-                // Ищем, есть ли рядом хоть один Параноик
                 for (int i = 0; i < paranoiacEntities.Length; i++)
                 {
                     float dist = math.distance(transform.ValueRO.Position, paranoiacTransforms[i].Position);
-                    
                     if (dist <= paranoiacConfigs[i].ShieldAuraRadius)
                     {
                         inAura = true;
-                        // Союзник получает 50% от максимального щита Параноика
                         bonusMaxShield = paranoiacShields[i].MaxShield * 0.5f; 
-                        break; // Достаточно одного Параноика
+                        break; 
                     }
                 }
 
                 bool hasShield = SystemAPI.HasComponent<EnergyShieldComponent>(entity);
+                bool hasAuraTag = SystemAPI.HasComponent<AuraShieldTag>(entity);
+                bool hasPermanentTag = SystemAPI.HasComponent<PermanentShieldTag>(entity);
 
-                if (inAura && !hasShield)
+                // Игрок ВОШЕЛ в ауру
+                if (inAura)
                 {
-                    // Вошел в ауру — выдаем щит!
-                    ecb.AddComponent(entity, new EnergyShieldComponent 
-                    { 
-                        MaxShield = bonusMaxShield, 
-                        CurrentShield = bonusMaxShield, 
-                        OutOfCombatTimer = 0f 
-                    });
-                    Debug.Log($"<color=#1E90FF>[АУРА]</color> Игрок {entity.Index} вошел в ауру Параноика и получил щит {bonusMaxShield}!");
+                    if (hasShield) continue;
+                    ecb.AddComponent(entity, new EnergyShieldComponent { MaxShield = bonusMaxShield, CurrentShield = bonusMaxShield, OutOfCombatTimer = 0f });
+                    ecb.AddComponent<AuraShieldTag>(entity); // Помечаем, что щит от ауры
+                    Debug.Log(
+                        $"<color=#1E90FF>[АУРА]</color> Игрок {entity.Index} получил щит {bonusMaxShield} от Параноика!");
                 }
-                else if (!inAura && hasShield)
+                // Игрок ВЫШЕЛ из ауры
+                else if (hasShield)
                 {
-                    // Вышел из ауры — забираем щит
+                    // Удаляем щит ТОЛЬКО если он был выдан исключительно аурой
+                    if (!hasAuraTag || hasPermanentTag) continue;
                     ecb.RemoveComponent<EnergyShieldComponent>(entity);
-                    Debug.Log($"<color=#4682B4>[АУРА]</color> Игрок {entity.Index} покинул ауру Параноика. Щит деактивирован.");
+                    ecb.RemoveComponent<AuraShieldTag>(entity);
+                    Debug.Log($"<color=#4682B4>[АУРА]</color> Игрок {entity.Index} покинул ауру. Щит деактивирован.");
                 }
             }
-
+            
             paranoiacEntities.Dispose();
             paranoiacTransforms.Dispose();
             paranoiacConfigs.Dispose();

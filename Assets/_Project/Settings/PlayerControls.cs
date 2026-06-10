@@ -163,6 +163,24 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""UseConsumable1"",
+                    ""type"": ""Button"",
+                    ""id"": ""d90a9df4-590c-4c49-9159-e57e93c79204"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""UseConsumable2"",
+                    ""type"": ""Button"",
+                    ""id"": ""d2fe2261-ccf4-4b5f-b571-3daa96b7f39e"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -385,6 +403,50 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""action"": ""SelectAmmo4"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""47c9f130-0432-44b7-bf22-93a6a3698a18"",
+                    ""path"": ""<Keyboard>/e"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable1"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""7d8222a2-b5b8-4485-ba36-3d8c42400584"",
+                    ""path"": ""<Gamepad>/leftShoulder"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable1"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""5d0d813d-4051-48f0-82a6-76e94090e0ed"",
+                    ""path"": ""<Keyboard>/f"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable2"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""7d7877fe-ade7-4868-931a-125dffa5fed5"",
+                    ""path"": ""<Gamepad>/rightShoulder"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable2"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         },
@@ -564,6 +626,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         m_Gameplay_SelectAmmo2 = m_Gameplay.FindAction("SelectAmmo2", throwIfNotFound: true);
         m_Gameplay_SelectAmmo3 = m_Gameplay.FindAction("SelectAmmo3", throwIfNotFound: true);
         m_Gameplay_SelectAmmo4 = m_Gameplay.FindAction("SelectAmmo4", throwIfNotFound: true);
+        m_Gameplay_UseConsumable1 = m_Gameplay.FindAction("UseConsumable1", throwIfNotFound: true);
+        m_Gameplay_UseConsumable2 = m_Gameplay.FindAction("UseConsumable2", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_ToggleNetworkMenu = m_UI.FindAction("ToggleNetworkMenu", throwIfNotFound: true);
@@ -660,6 +724,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Gameplay_SelectAmmo2;
     private readonly InputAction m_Gameplay_SelectAmmo3;
     private readonly InputAction m_Gameplay_SelectAmmo4;
+    private readonly InputAction m_Gameplay_UseConsumable1;
+    private readonly InputAction m_Gameplay_UseConsumable2;
     /// <summary>
     /// Provides access to input actions defined in input action map "Gameplay".
     /// </summary>
@@ -703,6 +769,14 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Gameplay/SelectAmmo4".
         /// </summary>
         public InputAction @SelectAmmo4 => m_Wrapper.m_Gameplay_SelectAmmo4;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/UseConsumable1".
+        /// </summary>
+        public InputAction @UseConsumable1 => m_Wrapper.m_Gameplay_UseConsumable1;
+        /// <summary>
+        /// Provides access to the underlying input action "Gameplay/UseConsumable2".
+        /// </summary>
+        public InputAction @UseConsumable2 => m_Wrapper.m_Gameplay_UseConsumable2;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -753,6 +827,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @SelectAmmo4.started += instance.OnSelectAmmo4;
             @SelectAmmo4.performed += instance.OnSelectAmmo4;
             @SelectAmmo4.canceled += instance.OnSelectAmmo4;
+            @UseConsumable1.started += instance.OnUseConsumable1;
+            @UseConsumable1.performed += instance.OnUseConsumable1;
+            @UseConsumable1.canceled += instance.OnUseConsumable1;
+            @UseConsumable2.started += instance.OnUseConsumable2;
+            @UseConsumable2.performed += instance.OnUseConsumable2;
+            @UseConsumable2.canceled += instance.OnUseConsumable2;
         }
 
         /// <summary>
@@ -788,6 +868,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @SelectAmmo4.started -= instance.OnSelectAmmo4;
             @SelectAmmo4.performed -= instance.OnSelectAmmo4;
             @SelectAmmo4.canceled -= instance.OnSelectAmmo4;
+            @UseConsumable1.started -= instance.OnUseConsumable1;
+            @UseConsumable1.performed -= instance.OnUseConsumable1;
+            @UseConsumable1.canceled -= instance.OnUseConsumable1;
+            @UseConsumable2.started -= instance.OnUseConsumable2;
+            @UseConsumable2.performed -= instance.OnUseConsumable2;
+            @UseConsumable2.canceled -= instance.OnUseConsumable2;
         }
 
         /// <summary>
@@ -1024,6 +1110,20 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnSelectAmmo4(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "UseConsumable1" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnUseConsumable1(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "UseConsumable2" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnUseConsumable2(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.

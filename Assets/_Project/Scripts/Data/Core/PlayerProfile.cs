@@ -14,6 +14,12 @@ namespace _Project.Scripts.Data.Core
         [SerializeField] private int _memoryShards = 1000; // Осколки памяти (Мета-валюта)
         public int MemoryShards => _memoryShards;
         
+        public int FireAmmo = 0;
+        public int CryoAmmo = 0;
+        public int ToxicAmmo = 0;
+        public List<string> UnlockedConsumables = new List<string>();
+        
+        
         public List<ArchetypeEntry> ProgressList = new ();
 
         [Serializable]
@@ -45,6 +51,13 @@ namespace _Project.Scripts.Data.Core
         public void AddMemoryShards(int amount)
         {
             if (amount > 0) _memoryShards += amount;
+        }
+        
+        public void AddAmmo(int fire, int cryo, int toxic)
+        {
+            FireAmmo += fire;
+            CryoAmmo += cryo;
+            ToxicAmmo += toxic;
         }
     }
 }

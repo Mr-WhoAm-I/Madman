@@ -250,8 +250,13 @@ namespace _Project.Scripts.Network.Managers
                 isSkillFired = _playerControls.Gameplay.Skill.IsPressed();
                 inputData.AimDirection = baseAimDirection; // Целимся туда, куда смотрит мышь
             }
+            
+            bool useConsumable1 = _playerControls.Gameplay.UseConsumable1.IsPressed();
+            bool useConsumable2 = _playerControls.Gameplay.UseConsumable2.IsPressed();
 
             inputData.Buttons.Set(PlayerInputButtons.Skill, isSkillFired);
+            inputData.Buttons.Set(PlayerInputButtons.UseConsumable1, useConsumable1);
+            inputData.Buttons.Set(PlayerInputButtons.UseConsumable2, useConsumable2);
             inputData.SelectedAmmoType = _currentAmmoChoice;
 
             input.Set(inputData);

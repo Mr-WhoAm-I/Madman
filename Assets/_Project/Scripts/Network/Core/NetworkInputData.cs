@@ -3,11 +3,11 @@ using UnityEngine;
 
 namespace _Project.Scripts.Network.Core
 {
-    // Определяем наши кнопки. Пока что только одна - Атака.
     public enum PlayerInputButtons
     {
         Skill = 0,
-        Interact = 1
+        UseConsumable1 = 1,
+        UseConsumable2 = 2
     }
 
     public struct NetworkInputData : INetworkInput

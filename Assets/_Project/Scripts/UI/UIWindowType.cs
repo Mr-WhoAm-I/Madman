@@ -9,6 +9,7 @@ namespace _Project.Scripts.UI
         Wardrobe,    // На будущее для интеграции
         MissionSelect, // На будущее для интеграции
         Shop,
-        Arsenal
+        Arsenal,
+        ConsumableShop
     }
 }

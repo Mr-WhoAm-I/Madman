@@ -23,10 +23,13 @@ namespace _Project.Scripts.Data.Core
         // ==========================================
         // СОХРАНЕНИЯ АРСЕНАЛА
         // ==========================================
-        public List<WeaponSaveData> WeaponArsenal = new List<WeaponSaveData>();
+        public List<WeaponSaveData> WeaponArsenal = new();
         
         // Массив слотов (Индекс 0 = Слот 1, Индекс 1 = Слот 2). Сохраняем ID оружия.
         public string[] EquippedWeaponIDs = new string[2] { "", "" };
+        
+        // Индекс 0 = Слот Q (или левый D-Pad), Индекс 1 = Слот E (или правый D-Pad)
+        public string[] EquippedConsumableIDs = new string[2] { "", "" };
 
         // Безопасное получение или создание данных об оружии
         public WeaponSaveData GetWeaponData(string weaponID)
@@ -61,6 +64,12 @@ namespace _Project.Scripts.Data.Core
         {
             var weapon = GetWeaponData(weaponID);
             weapon.Level++;
+        }
+        
+        public void EquipConsumable(string consumableID, int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= EquippedConsumableIDs.Length) return;
+            EquippedConsumableIDs[slotIndex] = consumableID;
         }
     }
 }

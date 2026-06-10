@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEngine;
 using _Project.Scripts.Data;
 using _Project.Scripts.Data.Core;
+using _Project.Scripts.Data.Shop;
 
 namespace _Project.Scripts.Core
 {
@@ -14,6 +15,7 @@ namespace _Project.Scripts.Core
         
         [Header("База данных")]
         public ArchetypeData[] AllArchetypes;
+        public ConsumableData[] AllConsumables;
 
         // НОВОЕ: Событие, которое срабатывает при смене класса
         public event Action<int> OnArchetypeChanged;
@@ -97,6 +99,12 @@ namespace _Project.Scripts.Core
 
             // Сохраняем прогресс на диск
             SaveGame();
+        }
+        
+        public ConsumableData GetConsumableAsset(string id)
+        {
+            if (AllConsumables == null || string.IsNullOrEmpty(id)) return null;
+            return AllConsumables.FirstOrDefault(c => c.consumableID == id);
         }
     }
 }

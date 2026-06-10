@@ -34,5 +34,8 @@ namespace _Project.Scripts.Data.Core
     {
         [Header("Сценарий Арены")]
         public List<WaveDefinition> waves = new();
+        [Header("Мета-награды")]
+        [Tooltip("Базовое количество Осколков памяти за каждую пройденную волну")]
+        public int baseMemoryShardsPerWave = 10;
     }
 }
